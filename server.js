@@ -308,7 +308,7 @@ app.post("/api/payments",auth,(req,res)=>{
  log("إضافة دفعة",`تم تسجيل دفعة بقيمة ${x.amount}`,req.user.username);res.json({ok:true});
 });
 
-app.post("/api/apartments/:id/photos",auth,upload.array("photos",30),(req,res)=>{
+app.post("/api/apartments/:id/photos",auth,upload.array("photos",10),(req,res)=>{
  if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const a=db.prepare("SELECT id,number FROM apartments WHERE id=?").get(req.params.id);
  if(!a) return res.status(404).json({error:"الشقة غير موجودة"});
