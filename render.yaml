@@ -1,10 +1,6 @@
 services:
   - type: web
     name: west-amman-property-manager
-    runtime: node
-    plan: free
+    env: node
     buildCommand: npm install
     startCommand: npm start
-    envVars:
-      - key: JWT_SECRET
-        generateValue: true
