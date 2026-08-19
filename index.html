@@ -8,9 +8,36 @@
 :root{--n:#102f3b;--n2:#0a222c;--g:#c8a45d;--g2:#ead59f;--bg:#f5f1e9;--c:#fffdf8;--t:#17262d;--m:#73818a;--line:#e7dfd1;--ok:#159a68;--bad:#d63f42;--blue:#277fd4;--orange:#ed8a1c;--shadow:0 12px 32px #09202b12}
 *{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--t)}button,input,select,textarea{font:inherit}button{cursor:pointer}
 .login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 10%,#d7bc7350,transparent 28%),linear-gradient(135deg,#071923,#174654)}.loginbox{width:min(440px,92%);background:var(--c);border-radius:28px;padding:30px;box-shadow:0 28px 80px #0007}.logo{width:55px;height:55px;border-radius:16px;border:1px solid var(--g);background:var(--n);color:var(--g2);display:grid;place-items:center;margin:auto;font-size:27px}.loginbox h1{text-align:center;font-size:23px}.muted{color:var(--m)}.demo{background:#f1e9da;color:#6d5935;padding:12px;border-radius:13px;font-size:12px;line-height:1.8}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--m);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:11px;border:1px solid #ddd4c5;border-radius:11px;background:#fff;outline:none}.btn{border:0;border-radius:11px;padding:10px 15px;font-weight:700}.primary{background:var(--g);color:#17252b}.dark{background:var(--n);color:#fff}.ghost{background:#f0ece4;color:var(--t)}.danger{background:var(--bad);color:#fff}.success{background:var(--ok);color:#fff}
-.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{background:linear-gradient(180deg,var(--n),var(--n2));color:#fff;padding:19px 14px;position:sticky;top:0;height:100vh}.brand{display:flex;align-items:center;gap:10px;padding:8px 4px 19px;border-bottom:1px solid #fff2}.brand .logo{margin:0;width:43px;height:43px;background:transparent}.brand b{font-size:15px}.brand small{color:#b9c6ca}.nav{padding-top:15px}.nav button{display:block;width:100%;background:transparent;border:0;color:#dce5e8;text-align:right;padding:12px;border-radius:12px;margin:2px 0}.nav button:hover,.nav button.active{background:#c8a45d1c;color:#fff;border-right:3px solid var(--g)}.main{min-width:0}.top{height:73px;background:#fffdf8ee;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 25px;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px)}.top h2{font-size:20px;margin:0}.user{display:flex;align-items:center;gap:9px}.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--n);color:var(--g2)}.content{padding:24px;max-width:1550px;margin:auto}.hero{border-radius:24px;background:linear-gradient(135deg,#123946,#0a202a 65%,#362c1b);color:#fff;padding:28px;display:flex;justify-content:space-between;align-items:center;gap:20px;box-shadow:var(--shadow)}.hero h3{font-size:27px;margin:6px 0}.hero small{color:var(--g2);font-weight:700}.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:13px;margin:17px 0}.stat,.panel{background:var(--c);border:1px solid var(--line);border-radius:19px;box-shadow:var(--shadow)}.stat{padding:15px}.stat .n{font-size:28px;font-weight:800}.stat .l{font-size:11px;color:var(--m)}.panel{padding:19px;margin-bottom:17px}.head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}.head h3{margin:0}.toolbar{display:flex;gap:8px;flex-wrap:wrap}.toolbar input,.toolbar select{padding:10px;border:1px solid #ddd4c5;border-radius:10px;background:#fff}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.card{border:1px solid var(--line);border-radius:16px;padding:15px;background:#fff}.card h4{margin:0 0 7px}.meta{font-size:12px;line-height:1.9;color:var(--m)}.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px}.pill{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:700}.available{background:#dcf5e8;color:#087b4d}.near{background:#fff2bf;color:#866500}.soon{background:#dcecff;color:#1d69a8}.reserved{background:#ffe5cf;color:#a95000}.repair{background:#ffdcdc;color:#ad2222}table{width:100%;border-collapse:collapse}th,td{padding:12px 8px;border-bottom:1px solid #eee7dc;text-align:right}th{font-size:11px;color:var(--m)}td{font-size:13px}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.full{grid-column:1/-1}.modal{position:fixed;inset:0;background:#07151b99;display:none;align-items:center;justify-content:center;padding:15px;z-index:20}.modal.show{display:flex}.modalbox{width:min(760px,100%);max-height:92vh;overflow:auto;background:var(--c);border-radius:22px;padding:21px}.modalhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.timeline{border-right:2px solid #dcd0b7;padding-right:18px}.event{padding-bottom:15px;position:relative}.event:before{content:"";position:absolute;right:-25px;top:3px;width:9px;height:9px;border-radius:50%;background:var(--g)}.event small{color:var(--m)}.notice{padding:11px;border-radius:12px;background:#f2eee6;font-size:12px}.empty{text-align:center;color:var(--m);padding:30px}footer{text-align:center;color:#8b8981;font-size:10px;padding:16px}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{background:linear-gradient(180deg,var(--n),var(--n2));color:#fff;padding:19px 14px;position:sticky;top:0;height:100vh}.brand{display:flex;align-items:center;gap:10px;padding:8px 4px 19px;border-bottom:1px solid #fff2}.brand .logo{margin:0;width:43px;height:43px;background:transparent}.brand b{font-size:15px}.brand small{color:#b9c6ca}.nav{padding-top:15px}.nav button{display:block;width:100%;background:transparent;border:0;color:#dce5e8;text-align:right;padding:12px;border-radius:12px;margin:2px 0}.nav button:hover,.nav button.active{background:#c8a45d1c;color:#fff;border-right:3px solid var(--g)}.main{min-width:0}.top{height:73px;background:#fffdf8ee;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 25px;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px)}.top h2{font-size:20px;margin:0}.user{display:flex;align-items:center;gap:9px}.avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--n);color:var(--g2)}.content{padding:24px;max-width:1550px;margin:auto}.hero{border-radius:24px;background:linear-gradient(135deg,#123946,#0a202a 65%,#362c1b);color:#fff;padding:28px;display:flex;justify-content:space-between;align-items:center;gap:20px;box-shadow:var(--shadow)}.hero h3{font-size:27px;margin:6px 0}.hero small{color:var(--g2);font-weight:700}.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:13px;margin:17px 0}.stat,.panel{background:var(--c);border:1px solid var(--line);border-radius:19px;box-shadow:var(--shadow)}.stat{padding:15px}.stat .n{font-size:28px;font-weight:800}.stat .l{font-size:11px;color:var(--m)}.panel{padding:19px;margin-bottom:17px}.head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}.head h3{margin:0}.toolbar{display:flex;gap:8px;flex-wrap:wrap}.toolbar input,.toolbar select{padding:10px;border:1px solid #ddd4c5;border-radius:10px;background:#fff}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.card{border:1px solid var(--line);border-radius:16px;padding:15px;background:#fff}.card h4{margin:0 0 7px}.meta{font-size:12px;line-height:1.9;color:var(--m)}.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px}.pill{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:700}.available{background:#dcf5e8;color:#087b4d}.near{background:#fff2bf;color:#866500}.soon{background:#dcecff;color:#1d69a8}.reserved{background:#ffe5cf;color:#a95000}.repair{background:#ffdcdc;color:#ad2222}.status-square{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:9px;font-size:11px;font-weight:800;border:1px solid transparent}.status-square:before{content:"";width:11px;height:11px;border-radius:3px;background:currentColor;box-shadow:0 0 0 2px #ffffff99}.status-square.available{background:#d9f6e7;color:#087b4d}.status-square.near{background:#fff0b5;color:#7b6000}.status-square.soon{background:#dcecff;color:#1d69a8}.status-square.reserved{background:#ffe2cc;color:#a95000}.status-square.repair{background:#ffd8d8;color:#ad2222}.video-wrap{margin-top:12px;border:1px solid var(--line);border-radius:14px;padding:10px;background:#f8f4eb}.video-wrap video{width:100%;max-height:330px;border-radius:10px;background:#101820}.chatbox{display:flex;flex-direction:column;gap:10px}.chat-messages{max-height:55vh;overflow:auto;padding:12px;background:#f5f1e9;border-radius:15px}.msg{padding:10px 12px;border-radius:13px;margin:7px 0;max-width:85%;background:#fff;border:1px solid var(--line)}.msg.mine{margin-right:auto;background:#e9f3f0;border-color:#b9d8cf}.msg .meta2{font-size:10px;color:var(--m);margin-bottom:4px}table{width:100%;border-collapse:collapse}th,td{padding:12px 8px;border-bottom:1px solid #eee7dc;text-align:right}th{font-size:11px;color:var(--m)}td{font-size:13px}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.full{grid-column:1/-1}.modal{position:fixed;inset:0;background:#07151b99;display:none;align-items:center;justify-content:center;padding:15px;z-index:20}.modal.show{display:flex}.modalbox{width:min(760px,100%);max-height:92vh;overflow:auto;background:var(--c);border-radius:22px;padding:21px}.modalhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.timeline{border-right:2px solid #dcd0b7;padding-right:18px}.event{padding-bottom:15px;position:relative}.event:before{content:"";position:absolute;right:-25px;top:3px;width:9px;height:9px;border-radius:50%;background:var(--g)}.event small{color:var(--m)}.notice{padding:11px;border-radius:12px;background:#f2eee6;font-size:12px}.empty{text-align:center;color:var(--m);padding:30px}footer{text-align:center;color:#8b8981;font-size:10px;padding:16px}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px}.photo{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#f5f1e9;aspect-ratio:1/1}.photo img{width:100%;height:100%;object-fit:cover;display:block}.photo button{position:absolute;top:5px;left:5px;border:0;border-radius:8px;background:#d63f42;color:#fff;padding:5px 7px}.photoempty{padding:18px;text-align:center;color:var(--m);background:#f5f1e9;border-radius:12px}@media(max-width:600px){.photos{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:800px){.app{grid-template-columns:1fr}.side{height:auto;position:static}.nav{display:flex;overflow:auto}.nav button{white-space:nowrap;width:auto}.content{padding:14px}.top{padding:0 14px}}@media(max-width:600px){.stats,.cards,.formgrid{grid-template-columns:1fr}.hero{flex-direction:column;align-items:flex-start}.toolbar input,.toolbar select{width:100%}.top h2{font-size:17px}}
 </style>
+
+<style id="v4-enhancements">
+.v4-share{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:8px 11px;background:#b8953f;color:#fff;font-weight:700;cursor:pointer}
+.v4-copy{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:8px 11px;background:#1d2942;color:#fff;font-weight:700;cursor:pointer}
+.v4-field{min-width:105px}
+.v4-details{white-space:pre-wrap;line-height:1.8;background:#f7f5ef;border:1px solid #d8caa3;border-radius:12px;padding:12px}
+.v4-count{font-size:12px;font-weight:700;padding:3px 7px;border-radius:999px;background:#eee6cd;color:#57461b}
+</style>
+
+
+<style id="v5-alert-css">
+.v5-alert-box{margin:10px 0;padding:12px;border-radius:12px;border:2px solid #c62828;background:#ffebee;color:#9b1c1c;font-weight:800}
+.v5-alert-btn{background:#c62828!important;color:#fff!important;border:0!important;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}
+.v5-alert-days{max-width:130px}
+.v5-alert-badge{display:inline-block;background:#c62828;color:#fff;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:800}
+</style>
+
+
+<style id="final-release-css">
+.final-alert-counter{position:sticky;top:8px;z-index:50;margin:10px 0;padding:12px 16px;border-radius:14px;background:#c62828;color:#fff;box-shadow:0 5px 18px rgba(0,0,0,.18);font-weight:900;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.final-alert-counter small{font-weight:700;opacity:.95}
+.final-alert-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.final-alert-panel{width:min(650px,96vw);max-height:85vh;overflow:auto;background:#fff;border-radius:18px;padding:18px;color:#222}
+.final-alert-row{border:1px solid #eee;border-right:5px solid #c62828;border-radius:12px;padding:12px;margin:9px 0}
+.final-alert-close{float:left;border:0;background:#eee;border-radius:10px;padding:7px 11px;font-weight:800}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
@@ -24,17 +51,25 @@ async function doLogin(){try{let j=await fetch("/api/login",{method:"POST",heade
 async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
 function nav(p){page=p;search="";render()}
 function role(){return me.role==="owner"?"المالك":me.role==="admin"?"مسؤول النظام":"مستخدم عادي"}
-function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo">⌂</div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
-<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button><button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
-function view(){return page==="home"?home():page==="apartments"?apartments():page==="tenants"?tenants():page==="finance"?finance():page==="users"?users():logs()}
+function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo">⌂</div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
+<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button>${["owner","admin"].includes(me.role)?`<button class="${page==="chat"?"active":""}" onclick="nav('chat')">💬 المحادثة</button>`:""}<button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
+function view(){return page==="home"?home():page==="apartments"?apartments():page==="tenants"?tenants():page==="finance"?finance():page==="users"?users():page==="chat"?chat():logs()}
 function home(){let s=D.stats||{};return `<div class="hero"><div><small>نسخة احترافية — كحلي وذهبي</small><h3>مرحباً بك في نظام إدارة عقارات غرب عمّان</h3><p>إدارة الشقق، المستأجرين، العقود، الدفعات، المستندات والصلاحيات.</p></div><button class="btn primary" onclick="nav('apartments')">إدارة العقارات</button></div><div class="stats"><div class="stat"><div class="n">${s.total||0}</div><div class="l">إجمالي الشقق</div></div><div class="stat"><div class="n">${s.available||0}</div><div class="l">متاحة</div></div><div class="stat"><div class="n">${s.soon||0}</div><div class="l">قريبة من التوفر</div></div><div class="stat"><div class="n">${s.rented||0}</div><div class="l">مؤجرة</div></div><div class="stat"><div class="n">${s.repair||0}</div><div class="l">صيانة</div></div><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">دفعات هذا الشهر د.أ</div></div></div><div class="panel"><div class="head"><h3>أحدث الشقق</h3><button class="btn ghost" onclick="nav('apartments')">عرض الكل</button></div><div class="cards">${D.apartments.slice(0,6).map(card).join("")}</div></div><div class="panel"><div class="head"><h3>آخر العمليات</h3><button class="btn ghost" onclick="nav('logs')">السجل</button></div>${D.logs.slice(0,6).map(l=>`<div style="padding:10px 0;border-bottom:1px solid #eee7dc"><b>${esc(l.action)}</b> — ${esc(l.detail)} <small class="muted">${esc(l.created_at)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div>`}
-function badge(s){let c=s==="متاحة"?"available":s==="قريبة من التوفر"?"near":s==="الحجز ينتهي قريباً"?"soon":s==="مؤجرة / محجوزة"?"reserved":"repair";return `<span class="pill ${c}">${esc(s)}</span>`}
-function card(a){return `<div class="card"><h4>شقة ${esc(a.number)}</h4><div class="meta">${esc(a.area)}<br>${a.rooms} غرف • ${a.baths} حمام • ${a.size_m2||0} م²<br>${Number(a.rent||0).toLocaleString()} د.أ / شهر • طابق ${a.floor}</div><div class="row">${badge(a.status)}<button class="btn ghost" onclick="editA(${a.id})">تفاصيل</button></div></div>`}
-function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':""}</div><div class="toolbar"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join("")}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join("")}</select><button class="btn ghost" onclick="location.href='/api/export/apartments.csv'">تصدير CSV</button></div><div id="alist" class="cards" style="margin-top:16px"></div></div><div class="panel"><div class="head"><h3>مناطق غرب عمّان</h3><span class="muted">${D.areas.length} منطقة/حي</span></div><div class="cards">${D.areas.map(a=>`<div class="card"><b>${esc(a.name)}</b><div class="meta">منطقة متاحة للإسناد إلى الشقق</div></div>`).join("")}</div></div>`}
+function badge(s){let c=s==="متاحة"?"available":s==="قريبة من التوفر"?"near":s==="الحجز ينتهي قريباً"?"soon":s==="مؤجرة / محجوزة"?"reserved":"repair";return `<span class="status-square ${c}">${esc(s)}</span>`}
+function card(a){let photos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة');let thumb=photos[0]?.filename?`<img src="/uploads/${encodeURIComponent(photos[0].filename)}" style="width:100%;height:150px;object-fit:cover;border-radius:12px;margin-bottom:10px" alt="صورة الشقة">`:'';return `<div class="card">${thumb}<h4>شقة ${esc(a.number)}</h4><div class="meta">${esc(a.area)}<br>${a.rooms} غرف • ${a.baths} حمام • ${a.size_m2||0} م²<br>${Number(a.rent||0).toLocaleString()} د.أ / شهر • طابق ${a.floor}<br>📷 ${photos.length} صورة ${videos.length?` • 🎥 ${videos.length} فيديو`:""}</div><div class="row">${badge(a.status)}<button class="btn ghost" onclick="editA(${a.id})">تفاصيل</button></div></div>`}
+function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':""}</div><div class="toolbar"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join("")}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join("")}</select><button class="btn ghost" onclick="location.href='/api/export/apartments.csv'">تصدير CSV</button></div><div class="notice" style="margin-top:10px">حالة الشقة تظهر الآن بمربع واضح بلون مميز: <span class="status-square available">متاحة</span> <span class="status-square reserved">مؤجرة / محجوزة</span> <span class="status-square repair">صيانة</span></div><div id="alist" class="cards" style="margin-top:16px"></div></div><div class="panel"><div class="head"><h3>مناطق غرب عمّان</h3><span class="muted">${D.areas.length} منطقة/حي</span></div><div class="cards">${D.areas.map(a=>`<div class="card"><b>${esc(a.name)}</b><div class="meta">منطقة متاحة للإسناد إلى الشقق</div></div>`).join("")}</div></div>`}
 function drawA(){let q=($("aq")?.value||"").toLowerCase(),ar=$("af")?.value||"",st=$("as")?.value||"";let x=D.apartments.filter(a=>(a.number+" "+a.area).toLowerCase().includes(q)&&(!ar||a.area===ar)&&(!st||a.status===st));$("alist").innerHTML=x.length?x.map(card).join(""):'<div class="empty">لا توجد نتائج</div>'}
 function aForm(a={}){return `<div class="formgrid"><div class="field"><label>رقم الشقة</label><input id="an" value="${esc(a.number)}"></div><div class="field"><label>المنطقة</label><select id="aa">${D.areas.map(x=>`<option value="${x.id}" ${(x.id===a.area_id||x.name===a.area)?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>الحالة</label><select id="ast">${statuses.map(s=>`<option ${s===a.status?"selected":""}>${s}</option>`).join("")}</select></div><div class="field"><label>الإيجار الشهري (د.أ)</label><input id="ar" type="number" value="${a.rent||0}"></div><div class="field"><label>المساحة (م²)</label><input id="az" type="number" value="${a.size_m2||0}"></div><div class="field"><label>الغرف</label><input id="ro" type="number" value="${a.rooms||2}"></div><div class="field"><label>الحمامات</label><input id="ba" type="number" value="${a.baths||1}"></div><div class="field"><label>الطابق</label><input id="fl" type="number" value="${a.floor||1}"></div><div class="field full"><label>ملاحظات</label><textarea id="no">${esc(a.notes)}</textarea></div></div>`}
 function addA(){modal(`<div class="modalhead"><h3>إضافة شقة جديدة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm()}<button class="btn primary" style="margin-top:14px" onclick="saveA()">حفظ</button>`)}
-function editA(id){let a=D.apartments.find(x=>x.id===id);modal(`<div class="modalhead"><h3>الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm(a)}<div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" onclick="saveA(${id})">حفظ</button>${me.role==="owner"?`<button class="btn danger" onclick="delA(${id})">حذف</button>`:""}</div>`)}
+function editA(id){let a=D.apartments.find(x=>x.id===id);let photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='فيديو شقة');modal(`<div class="modalhead"><h3>الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm(a)}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة • حتى 10 صور في الرفع الواحد</span></div>${me.role!=="user"?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:""}<div id="photos_${id}" class="photos">${photos.length?photos.map(photoHtml).join(""): '<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>🎥 فيديو الشقة</h3><span class="muted">${videos.length} فيديو</span></div>${me.role!=="user"?`<input id="apVideo" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onchange="uploadApartmentVideo(${id})">`:""}${videos.length?videos.map(videoHtml).join(""):'<div class="photoempty">لا يوجد فيديو لهذه الشقة</div>'}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" onclick="saveA(${id})">حفظ</button>${me.role==="owner"?`<button class="btn danger" onclick="delA(${id})">حذف</button>`:""}</div>`)}
+function photoHtml(d){return `<div class="photo" data-apartment="${d.apartment_id}"><img src="/uploads/${encodeURIComponent(d.filename)}" alt="${esc(d.original_name)}"><button onclick="deletePhoto(${d.id})">حذف</button></div>`}
+function videoHtml(d){return `<div class="video-wrap"><video controls preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row"><span class="muted">${esc(d.original_name)}</span><button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button></div></div>`}
+async function uploadApartmentPhotos(id){try{let input=$("apPhotos");if(!input.files.length)return;let fd=new FormData();[...input.files].forEach(f=>fd.append("photos",f));let r=await fetch("/api/apartments/"+id+"/photos",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الصور");alert("تم رفع الصور بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
+async function uploadApartmentVideo(id){try{let input=$("apVideo");if(!input.files.length)return;let fd=new FormData();fd.append("video",input.files[0]);let r=await fetch("/api/apartments/"+id+"/video",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الفيديو");alert("تم رفع الفيديو بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
+async function deletePhoto(id){if(!confirm("حذف هذه الصورة؟"))return;try{let d=D.documents.find(x=>x.id===id);await api("/api/documents/"+id,{method:"DELETE"});await load();if(d)editA(d.apartment_id);else closeM();}catch(e){alert(e.message)}}
+async function deleteVideo(id,apartmentId){if(!confirm("حذف فيديو الشقة؟"))return;try{await api("/api/documents/"+id,{method:"DELETE"});await load();editA(apartmentId)}catch(e){alert(e.message)}}
+async function uploadApartmentPhotos(id){try{let input=$("apPhotos");if(!input.files.length)return;let fd=new FormData();[...input.files].forEach(f=>fd.append("photos",f));let r=await fetch("/api/apartments/"+id+"/photos",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الصور");alert("تم رفع الصور بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
+async function deletePhoto(id){if(!confirm("حذف هذه الصورة؟"))return;try{await api("/api/documents/"+id,{method:"DELETE"});await load();let d=D.documents.find(x=>x.id===id);if(d)editA(d.apartment_id);else closeM();}catch(e){alert(e.message)}}
 async function saveA(id){try{let b={number:an.value,area_id:+aa.value,status:ast.value,rent:+ar.value,size_m2:+az.value,rooms:+ro.value,baths:+ba.value,kitchen:1,floor:+fl.value,notes:no.value};await api(id?"/api/apartments/"+id:"/api/apartments",{method:id?"PUT":"POST",body:JSON.stringify(b)});closeM();await load()}catch(e){alert(e.message)}}
 async function delA(id){if(!confirm("هل تريد حذف الشقة؟"))return;try{await api("/api/apartments/"+id,{method:"DELETE"});closeM();await load()}catch(e){alert(e.message)}}
 function tenants(){return `<div class="panel"><div class="head"><h3>المستأجرون والعقود</h3>${me.role!=="user"?'<button class="btn primary" onclick="addT()">＋ إضافة مستأجر</button>':""}</div><table><thead><tr><th>المستأجر</th><th>الشقة</th><th>الهاتف</th><th>الإيجار</th><th>بداية العقد</th><th>نهاية العقد</th><th>الحالة</th></tr></thead><tbody>${D.tenants.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.apartment||"—")}</td><td>${esc(t.phone)}</td><td>${Number(t.monthly_rent||0).toLocaleString()}</td><td>${esc(t.contract_start||"—")}</td><td>${esc(t.contract_end||"—")}</td><td>${badge(t.status)}</td></tr>`).join("")||'<tr><td colspan="7" class="empty">لا يوجد مستأجرون</td></tr>'}</tbody></table></div>`}
@@ -43,14 +78,246 @@ async function saveT(){try{await api("/api/tenants",{method:"POST",body:JSON.str
 function finance(){return `<div class="panel"><div class="head"><h3>الدفعات والتحصيل</h3>${me.role!=="user"?'<button class="btn primary" onclick="addP()">＋ تسجيل دفعة</button>':""}</div><div class="stats"><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">إجمالي دفعات الشهر د.أ</div></div></div><table><thead><tr><th>التاريخ</th><th>المستأجر</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead><tbody>${D.payments.map(p=>`<tr><td>${esc(p.payment_date)}</td><td>${esc(p.tenant||"—")}</td><td><b>${Number(p.amount).toLocaleString()} د.أ</b></td><td>${esc(p.method)}</td><td>${esc(p.reference||"—")}</td></tr>`).join("")||'<tr><td colspan="5" class="empty">لا توجد دفعات</td></tr>'}</tbody></table></div>`}
 function addP(){modal(`<div class="modalhead"><h3>تسجيل دفعة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="formgrid"><div class="field"><label>المستأجر</label><select id="pt">${D.tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div><div class="field"><label>المبلغ</label><input id="pa" type="number" step="0.01"></div><div class="field"><label>التاريخ</label><input id="pd" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>طريقة الدفع</label><select id="pm"><option>نقدي</option><option>تحويل بنكي</option><option>إي فواتيركم</option><option>شيك</option></select></div><div class="field"><label>المرجع</label><input id="pr"></div><div class="field full"><label>ملاحظات</label><textarea id="pn"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveP()">حفظ</button>`)}
 async function saveP(){try{await api("/api/payments",{method:"POST",body:JSON.stringify({tenant_id:+pt.value,amount:+pa.value,payment_date:pd.value,method:pm.value,reference:pr.value,notes:pn.value})});closeM();await load()}catch(e){alert(e.message)}}
-function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3>${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ مستخدم</button>':""}</div><div class="cards"><div class="card"><h4>المالك</h4><div class="meta">إدارة كاملة + حذف + مستخدمين</div></div><div class="card"><h4>Admin</h4><div class="meta">إضافة وتعديل بدون حذف</div></div><div class="card"><h4>User</h4><div class="meta">عرض وبحث فقط</div></div></div><div class="notice" style="margin-top:14px">لأمان النسخة المنشورة غيّر كلمات المرور التجريبية قبل استخدامها فعلياً.</div></div>`}
+function chat(){if(!["owner","admin"].includes(me.role))return '<div class="empty">المحادثة متاحة للمالك وAdmin فقط</div>';return `<div class="panel"><div class="head"><div><h3>💬 محادثة داخلية</h3><span class="muted">محادثة خاصة بين المالك وAdmin</span></div><button class="btn ghost" onclick="loadChat()">↻ تحديث</button></div><div id="chatMessages" class="chat-messages"><div class="empty">جاري تحميل الرسائل...</div></div><div class="chatbox" style="margin-top:12px"><textarea id="chatInput" rows="3" maxlength="2000" placeholder="اكتب رسالتك للمالك أو Admin..."></textarea><button class="btn primary" onclick="sendChat()">إرسال الرسالة</button></div></div>`}
+async function loadChat(){try{let r=await fetch("/api/messages",{headers:{Authorization:"Bearer "+token}});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل تحميل المحادثة");let box=$("chatMessages");if(!box)return;box.innerHTML=j.length?j.map(m=>`<div class="msg ${m.sender_username===me.username?"mine":""}"><div class="meta2">${esc(m.sender_username)} • ${esc(m.created_at)}</div><div>${esc(m.message)}</div></div>`).join(""):'<div class="empty">لا توجد رسائل بعد</div>';box.scrollTop=box.scrollHeight}catch(e){let box=$("chatMessages");if(box)box.innerHTML=`<div class="notice">${esc(e.message)}</div>`}}
+async function sendChat(){let input=$("chatInput");let message=(input?.value||"").trim();if(!message)return;try{await api("/api/messages",{method:"POST",body:JSON.stringify({message})});input.value="";await loadChat()}catch(e){alert(e.message)}}
+function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ مستخدم</button>':""}<button class="btn dark" onclick="changePassword()">🔐 تغيير كلمة المرور</button></div></div><div class="cards"><div class="card"><h4>المالك</h4><div class="meta">إدارة كاملة + حذف + مستخدمين</div></div><div class="card"><h4>Admin</h4><div class="meta">إضافة وتعديل بدون حذف</div></div><div class="card"><h4>User</h4><div class="meta">عرض وبحث فقط</div></div></div><div class="notice" style="margin-top:14px">يمكن لكل مستخدم تغيير كلمة مرور حسابه من هنا. استخدم كلمة مرور قوية ولا تشاركها.</div></div>`}
+function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><input id="cp" type="password" autocomplete="current-password"></div><div class="field"><label>كلمة المرور الجديدة</label><input id="np" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><input id="np2" type="password" minlength="6" autocomplete="new-password"></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
+async function savePassword(){try{if(np.value!==np2.value)throw Error("كلمتا المرور الجديدتان غير متطابقتين");if(np.value.length<6)throw Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف/أرقام على الأقل");await api("/api/change-password",{method:"POST",body:JSON.stringify({currentPassword:cp.value,newPassword:np.value})});closeM();alert("تم تغيير كلمة المرور بنجاح. استخدمها في تسجيل الدخول القادم.")}catch(e){alert(e.message)}}
+
 function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><input id="up" type="password"></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
 async function saveU(){try{await api("/api/users",{method:"POST",body:JSON.stringify({username:un.value,password:up.value,role:ur.value})});closeM();alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3></div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
 function modal(x){$("modalbox").innerHTML=x;$("modal").classList.add("show")}function closeM(){$("modal").classList.remove("show")}function logout(){localStorage.clear();token=null;me=null;login()}
-function render(){shell();if(page==="apartments")drawA()}
+function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat()}
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 load();
 </script>
+
+<script id="v4-enhancements-js">
+/* v4: Rooms, bathrooms, living room/salon/balcony + owner sharing.
+   The script augments common forms and cards while preserving the existing app. */
+(function(){
+  const labels = [
+    ["rooms","عدد الغرف","number"],
+    ["bathrooms","عدد الحمامات","number"],
+    ["living_rooms","عدد الصالات","number"],
+    ["salons","عدد الصالونات","number"],
+    ["balconies","عدد البلكونات","number"]
+  ];
+
+  function addFieldsToForms(){
+    document.querySelectorAll("form").forEach(form=>{
+      if(form.dataset.v4Done) return;
+      const text = (form.innerText||"").toLowerCase();
+      if(!text.includes("شقة") && !form.querySelector('[name="apartment_id"]')) return;
+      const anchor = form.querySelector("button[type=submit], button");
+      if(!anchor) return;
+      const wrap=document.createElement("div");
+      wrap.className="grid";
+      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:10px 0";
+      labels.forEach(([name,label,type])=>{
+        const box=document.createElement("label");
+        box.className="v4-field";
+        box.innerHTML=`<span>${label}</span><input name="${name}" type="${type}" min="0" value="0">`;
+        wrap.appendChild(box);
+      });
+      anchor.parentElement.insertBefore(wrap, anchor);
+      form.dataset.v4Done="1";
+    });
+  }
+
+  function shareTextFromCard(card){
+    const title=card.querySelector("h1,h2,h3,h4,.title")?.innerText || "تفاصيل الشقة";
+    const text=card.innerText.replace(/\n{3,}/g,"\n").trim();
+    return `🏠 ${title}\n━━━━━━━━━━━━\n${text}`;
+  }
+
+  function addShareButtons(){
+    document.querySelectorAll("article,.card,.apartment-card,[data-apartment-id]").forEach(card=>{
+      if(card.dataset.v4ShareDone) return;
+      const hasApartment = /شقة|غرفة|إيجار|حمام/.test(card.innerText||"");
+      if(!hasApartment) return;
+      const id=card.dataset.apartmentId || card.getAttribute("data-id");
+      const btn=document.createElement("button");
+      btn.className="v4-share";
+      btn.type="button";
+      btn.textContent="↗ مشاركة";
+      btn.title="مشاركة تفاصيل الشقة والصور والفيديو (للمالك فقط)";
+      btn.onclick=async()=>{
+        try{
+          const text=shareTextFromCard(card);
+          const media=[...card.querySelectorAll("img,video")].map(x=>x.currentSrc||x.src).filter(Boolean);
+          if(navigator.share){
+            const data={title:"تفاصيل الشقة",text};
+            // Browsers generally require actual File objects for media sharing;
+            // use text/link fallback if media cannot be attached.
+            await navigator.share(data);
+          }else{
+            await navigator.clipboard.writeText(text);
+            alert("تم نسخ تفاصيل الشقة. يمكنك لصقها ومشاركتها خارج التطبيق.");
+          }
+        }catch(e){}
+      };
+      const target=card.querySelector(".actions,.card-actions,footer") || card;
+      target.appendChild(btn);
+      card.dataset.v4ShareDone="1";
+    });
+  }
+
+  function addSearchFields(){
+    const forms=[...document.querySelectorAll("form")];
+    forms.forEach(form=>{
+      if(form.dataset.v4SearchDone) return;
+      const txt=(form.innerText||"").toLowerCase();
+      if(!/بحث|فلتر|تصفية|search|filter/.test(txt)) return;
+      const anchor=form.querySelector("button");
+      if(!anchor) return;
+      const wrap=document.createElement("div");
+      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0";
+      labels.forEach(([name,label])=>{
+        const input=document.createElement("input");
+        input.name=name; input.placeholder=label; input.type="number"; input.min="0";
+        input.className="v4-field";
+        wrap.appendChild(input);
+      });
+      anchor.parentElement.insertBefore(wrap,anchor);
+      form.dataset.v4SearchDone="1";
+    });
+  }
+
+  const run=()=>{addFieldsToForms();addSearchFields();addShareButtons()};
+  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
+  document.addEventListener("DOMContentLoaded",run);
+  setTimeout(run,500);
+})();
+</script>
+
+
+<script id="v5-alert-js">
+(function(){
+  const role = (window.currentUser && window.currentUser.role) || document.body.dataset.role || "";
+  function addAlertFieldToApartmentForms(){
+    document.querySelectorAll("form").forEach(form=>{
+      if(form.dataset.v5AlertDone) return;
+      const text=form.innerText||"";
+      if(!/شقة|العقار|apartment/i.test(text)) return;
+      const anchor=form.querySelector("button[type=submit],button");
+      if(!anchor) return;
+      const wrap=document.createElement("div");
+      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0";
+      wrap.innerHTML=`
+        <label>
+          <span>🔔 تنبيه قرب التوفر</span>
+          <input name="availability_alert_enabled" type="checkbox" value="1">
+        </label>
+        <label>
+          <span>عدد الأيام قبل التوفر</span>
+          <input name="availability_alert_days" class="v5-alert-days" type="number" min="1" max="365" value="7" placeholder="مثال: 10">
+        </label>`;
+      anchor.parentElement.insertBefore(wrap,anchor);
+      form.dataset.v5AlertDone="1";
+    });
+  }
+
+  async function loadAlerts(){
+    if(!['owner','admin'].includes(role)) return;
+    try{
+      const r=await fetch('/api/availability-alerts',{credentials:'include'});
+      if(!r.ok) return;
+      const data=await r.json();
+      const alerts=data.alerts||[];
+      if(!alerts.length) return;
+      let box=document.getElementById('v5-alerts');
+      if(!box){
+        box=document.createElement('section');
+        box.id='v5-alerts';
+        box.className='v5-alert-box';
+        const main=document.querySelector('main')||document.body;
+        main.prepend(box);
+      }
+      box.innerHTML=`🚨 تنبيهات قرب توفر الشقق (${alerts.length})<div style="margin-top:8px">${
+        alerts.map(a=>`<div style="margin:7px 0">🏠 ${a.code||a.apartment_code||a.name||'شقة'} — <span class="v5-alert-badge">${
+          a.days_until_available===0?'متاحة اليوم':`متاحة خلال ${a.days_until_available} يوم`
+        }</span></div>`).join('')
+      }</div>`;
+    }catch(e){}
+  }
+
+  function scanCards(){
+    document.querySelectorAll("article,.card,.apartment-card,[data-apartment-id]").forEach(card=>{
+      if(card.dataset.v5AlertDone) return;
+      const txt=card.innerText||"";
+      const m=txt.match(/متاحة خلال\s+(\d+)\s+يوم|تتوفر بعد\s+(\d+)/);
+      if(m){
+        const b=document.createElement("span");
+        b.className="v5-alert-badge";
+        b.textContent=`🚨 ${m[1]||m[2]} يوم`;
+        card.prepend(b);
+      }
+      card.dataset.v5AlertDone="1";
+    });
+  }
+
+  const run=()=>{addAlertFieldToApartmentForms();scanCards();loadAlerts()};
+  document.addEventListener("DOMContentLoaded",run);
+  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
+  setTimeout(run,1000);
+  setInterval(loadAlerts,60000);
+})();
+</script>
+
+
+<script id="final-release-js">
+(function(){
+  async function loadFinalCounter(){
+    try{
+      const r=await fetch('/api/availability-dashboard',{credentials:'include'});
+      if(!r.ok) return;
+      const d=await r.json();
+      let box=document.getElementById('final-alert-counter');
+      if(!d.count){
+        if(box) box.remove();
+        return;
+      }
+      if(!box){
+        box=document.createElement('div');
+        box.id='final-alert-counter';
+        box.className='final-alert-counter';
+        (document.querySelector('main')||document.body).prepend(box);
+        box.onclick=()=>openFinalAlerts(d.alerts||[]);
+      }
+      box.innerHTML=`<span>🔴 ${d.count} ${d.count===1?'شقة ستصبح متاحة قريبًا':'شقق ستصبح متاحة قريبًا'}</span><small>اضغط لعرض القائمة</small>`;
+    }catch(e){}
+  }
+
+  function openFinalAlerts(alerts){
+    const modal=document.createElement('div');
+    modal.className='final-alert-modal';
+    const panel=document.createElement('div');
+    panel.className='final-alert-panel';
+    panel.innerHTML=`<button class="final-alert-close">إغلاق</button><h2>🚨 الشقق التي ستصبح متاحة قريبًا</h2>`;
+    alerts.forEach(a=>{
+      const row=document.createElement('div');
+      row.className='final-alert-row';
+      row.innerHTML=`<strong>🏠 ${a.name||'شقة'}</strong><br>
+        🔖 الكود: ${a.code||'—'}<br>
+        📅 موعد التوفر: ${a.available_date||'—'}<br>
+        ⏳ ${a.days_until_available===0?'متاحة اليوم':`متاحة خلال ${a.days_until_available} يوم`}`;
+      panel.appendChild(row);
+    });
+    modal.appendChild(panel);
+    document.body.appendChild(modal);
+    panel.querySelector('.final-alert-close').onclick=()=>modal.remove();
+    modal.onclick=e=>{if(e.target===modal) modal.remove()};
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    loadFinalCounter();
+    setInterval(loadFinalCounter,60000);
+  });
+})();
+</script>
+
 </body>
 </html>

@@ -89,6 +89,16 @@ CREATE TABLE IF NOT EXISTS logs(
  who TEXT NOT NULL,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS messages(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ sender_id INTEGER NOT NULL,
+ sender_username TEXT NOT NULL,
+ recipient_role TEXT NOT NULL DEFAULT 'all_admin_owner',
+ message TEXT NOT NULL,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ read_at TEXT,
+ FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
 `);
 
 const AREAS = [
@@ -124,6 +134,21 @@ if(db.prepare("SELECT COUNT(*) c FROM apartments").get().c===0){
  ].forEach(x=>add.run(x[0],aid(x[1]),x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9]));
 }
 
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req,_file,cb)=>cb(null,UPLOAD_DIR),
+    filename: (_req,file,cb)=>{
+      const ext=path.extname(file.originalname).toLowerCase();
+      cb(null,"video-"+Date.now()+"-"+Math.random().toString(36).slice(2)+ext);
+    }
+  }),
+  limits:{fileSize:80*1024*1024},
+  fileFilter: (_req,file,cb)=>{
+    const ok=[".mp4",".webm",".mov",".m4v"].includes(path.extname(file.originalname).toLowerCase());
+    cb(ok?null:new Error("يسمح فقط بفيديو MP4 أو WEBM أو MOV أو M4V"),ok);
+  }
+});
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req,_file,cb)=>cb(null,UPLOAD_DIR),
@@ -134,6 +159,28 @@ const upload = multer({
   }),
   limits:{fileSize:10*1024*1024}
 });
+
+
+// v4 apartment fields migration
+const apartmentFieldMigrations = [
+  ["rooms", "INTEGER DEFAULT 0"],
+  ["bathrooms", "INTEGER DEFAULT 0"],
+  ["living_rooms", "INTEGER DEFAULT 0"],
+  ["salons", "INTEGER DEFAULT 0"],
+  ["balconies", "INTEGER DEFAULT 0"]
+];
+for (const [field, type] of apartmentFieldMigrations) {
+  try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch (e) {}
+}
+
+
+// v5 availability-alert fields: each apartment can have its own alert lead time.
+for (const [field, type] of [
+  ["availability_alert_days", "INTEGER DEFAULT 0"],
+  ["availability_alert_enabled", "INTEGER DEFAULT 0"]
+]) {
+  try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch (e) {}
+}
 
 app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR));
@@ -154,6 +201,16 @@ app.post("/api/login",(req,res)=>{
  if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
  res.json({token,user:{username:u.username,role:u.role}});
+});
+
+app.post("/api/change-password",auth,(req,res)=>{
+ const {currentPassword,newPassword}=req.body||{};
+ if(!currentPassword||!newPassword||String(newPassword).length<6) return res.status(400).json({error:"كلمة المرور الجديدة يجب أن تكون 6 أحرف/أرقام على الأقل"});
+ const u=db.prepare("SELECT * FROM users WHERE id=? AND active=1").get(req.user.id);
+ if(!u || !bcrypt.compareSync(currentPassword,u.password_hash)) return res.status(401).json({error:"كلمة المرور الحالية غير صحيحة"});
+ db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(bcrypt.hashSync(newPassword,12),u.id);
+ log("تغيير كلمة المرور",`تم تغيير كلمة مرور ${u.username}`,req.user.username);
+ res.json({ok:true});
 });
 
 app.get("/api/bootstrap",auth,(req,res)=>{
@@ -237,6 +294,46 @@ app.post("/api/payments",auth,(req,res)=>{
  log("إضافة دفعة",`تم تسجيل دفعة بقيمة ${x.amount}`,req.user.username);res.json({ok:true});
 });
 
+app.post("/api/apartments/:id/photos",auth,upload.array("photos",10),(req,res)=>{
+ if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ const a=db.prepare("SELECT id,number FROM apartments WHERE id=?").get(req.params.id);
+ if(!a) return res.status(404).json({error:"الشقة غير موجودة"});
+ const files=req.files||[];
+ if(!files.length) return res.status(400).json({error:"اختر صورة واحدة على الأقل"});
+ const allowed=new Set([".jpg",".jpeg",".png",".webp"]);
+ const bad=files.find(f=>!allowed.has(path.extname(f.originalname).toLowerCase()));
+ if(bad){ for(const f of files) try{fs.unlinkSync(f.path)}catch{}; return res.status(400).json({error:"يسمح فقط بصور JPG وPNG وWEBP"}); }
+ const ins=db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)");
+ const out=[];
+ const tx=db.transaction(()=>{ for(const f of files){ ins.run(a.id,f.filename,f.originalname,"صورة شقة"); out.push({url:"/uploads/"+f.filename,name:f.originalname}); } });
+ tx();
+ log("رفع صور شقة",`تم رفع ${files.length} صورة للشقة ${a.number}`,req.user.username);
+ res.json({ok:true,photos:out});
+});
+
+
+app.post("/api/apartments/:id/video",auth,videoUpload.single("video"),(req,res)=>{
+ if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ const a=db.prepare("SELECT id,number FROM apartments WHERE id=?").get(req.params.id);
+ if(!a) { if(req.file) try{fs.unlinkSync(req.file.path)}catch{}; return res.status(404).json({error:"الشقة غير موجودة"}); }
+ if(!req.file) return res.status(400).json({error:"اختر فيديو"});
+ const old=db.prepare("SELECT * FROM documents WHERE apartment_id=? AND kind='فيديو شقة'").all();
+ const ins=db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)");
+ const r=ins.run(a.id,req.file.filename,req.file.originalname,"فيديو شقة");
+ log("رفع فيديو شقة",`تم رفع فيديو للشقة ${a.number}`,req.user.username);
+ res.json({ok:true,id:r.lastInsertRowid,url:"/uploads/"+req.file.filename});
+});
+
+app.delete("/api/documents/:id",auth,(req,res)=>{
+ if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية الحذف"});
+ const d=db.prepare("SELECT * FROM documents WHERE id=?").get(req.params.id);
+ if(!d) return res.status(404).json({error:"الصورة غير موجودة"});
+ db.prepare("DELETE FROM documents WHERE id=?").run(d.id);
+ try{fs.unlinkSync(path.join(UPLOAD_DIR,d.filename))}catch{}
+ log("حذف صورة",`تم حذف ${d.original_name}`,req.user.username);
+ res.json({ok:true});
+});
+
 app.post("/api/documents",auth,upload.single("file"),(req,res)=>{
  if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
  if(!req.file) return res.status(400).json({error:"اختر ملفاً"});
@@ -244,6 +341,24 @@ app.post("/api/documents",auth,upload.single("file"),(req,res)=>{
  .run(req.body.apartment_id||null,req.body.tenant_id||null,req.file.filename,req.file.originalname,req.body.kind||"مستند");
  log("رفع مستند",`تم رفع ${req.file.originalname}`,req.user.username);
  res.json({ok:true,url:"/uploads/"+req.file.filename});
+});
+
+
+app.get("/api/messages",auth,(req,res)=>{
+ if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"المحادثة بين المالك وAdmin فقط"});
+ const rows=db.prepare(`SELECT * FROM messages
+   WHERE sender_username IN (SELECT username FROM users WHERE role IN ('owner','admin'))
+   ORDER BY id DESC LIMIT 200`).all().reverse();
+ res.json(rows);
+});
+app.post("/api/messages",auth,(req,res)=>{
+ if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"المحادثة بين المالك وAdmin فقط"});
+ const message=String(req.body?.message||"").trim();
+ if(!message || message.length>2000) return res.status(400).json({error:"اكتب رسالة صحيحة (حتى 2000 حرف)"});
+ const r=db.prepare("INSERT INTO messages(sender_id,sender_username,recipient_role,message) VALUES(?,?,?,?)")
+   .run(req.user.id,req.user.username,req.user.role==="owner"?"admin":"owner",message);
+ log("رسالة داخلية",`أرسل ${req.user.username} رسالة إلى ${req.user.role==="owner"?"Admin":"المالك"}`,req.user.username);
+ res.json({ok:true,id:r.lastInsertRowid});
 });
 
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
@@ -257,6 +372,66 @@ app.use((req,res,next)=>{
  if(req.method==="GET" && !req.path.startsWith("/api/") && !req.path.startsWith("/uploads/"))
    return res.sendFile(path.join(__dirname,"index.html"));
  next();
+});
+
+
+// v4 share endpoint: owner-only metadata payload for native Web Share.
+app.get('/api/apartments/:id/share', auth, (req,res)=>{
+  if (req.user?.role !== 'owner') return res.status(403).json({error:'الخاصية متاحة للمالك فقط'});
+  const a = db.prepare('SELECT * FROM apartments WHERE id=?').get(req.params.id);
+  if (!a) return res.status(404).json({error:'الشقة غير موجودة'});
+  res.json({apartment:a});
+});
+
+
+// v5 availability-alert endpoint: returns only configured, upcoming apartments.
+app.get('/api/availability-alerts', auth, (req,res)=>{
+  if (!['owner','admin'].includes(req.user?.role))
+    return res.status(403).json({error:'غير مصرح'});
+  const rows = db.prepare(`
+    SELECT * FROM apartments
+    WHERE COALESCE(availability_alert_enabled,0)=1
+      AND COALESCE(availability_alert_days,0)>0
+  `).all();
+  const now = new Date();
+  const alerts = rows.map(a=>{
+    // Use explicit available_from when present; otherwise infer from end_date.
+    const raw = a.available_from || a.available_date || a.end_date;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    const diff = Math.ceil((d-now)/86400000);
+    return {...a, days_until_available:diff};
+  }).filter(Boolean)
+    .filter(a=>a.days_until_available>=0 && a.days_until_available<=a.availability_alert_days)
+    .sort((a,b)=>a.days_until_available-b.days_until_available);
+  res.json({alerts});
+});
+
+
+// final availability dashboard counter
+app.get('/api/availability-dashboard', auth, (req,res)=>{
+  if (!['owner','admin'].includes(req.user?.role))
+    return res.status(403).json({error:'غير مصرح'});
+  const rows = db.prepare(`
+    SELECT id, code, name, available_from, available_date, end_date,
+           availability_alert_days, availability_alert_enabled
+    FROM apartments
+    WHERE COALESCE(availability_alert_enabled,0)=1
+      AND COALESCE(availability_alert_days,0)>0
+  `).all();
+  const now = new Date();
+  const alerts = rows.map(a=>{
+    const raw = a.available_from || a.available_date || a.end_date;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    const days = Math.ceil((d-now)/86400000);
+    if (days < 0 || days > a.availability_alert_days) return null;
+    return {id:a.id, code:a.code, name:a.name, available_date:raw,
+            days_until_available:days, alert_days:a.availability_alert_days};
+  }).filter(Boolean).sort((a,b)=>a.days_until_available-b.days_until_available);
+  res.json({count:alerts.length, alerts});
 });
 
 app.listen(PORT,"0.0.0.0",()=>console.log(`West Amman Property Manager: http://localhost:${PORT}`));
