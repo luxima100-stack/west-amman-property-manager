@@ -1,0 +1,12 @@
+ارفع هذه الملفات إلى GitHub:
+server.js
+package.json
+index.html
+manifest.json
+sw.js
+README_AR.md
+render.yaml
+تشغيل_على_Windows.bat
+.gitignore
+
+لا ترفع node_modules أو data.db.
