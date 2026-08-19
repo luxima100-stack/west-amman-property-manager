@@ -38,6 +38,29 @@
 .final-alert-close{float:left;border:0;background:#eee;border-radius:10px;padding:7px 11px;font-weight:800}
 </style>
 
+
+<style id="v5-5-gallery-css">
+.v55-gallery{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:2000;display:flex;align-items:center;justify-content:center;padding:18px}
+.v55-gallery-box{position:relative;width:min(900px,96vw);height:min(82vh,760px);display:flex;align-items:center;justify-content:center}
+.v55-gallery-img{max-width:88%;max-height:78vh;border-radius:16px;object-fit:contain;box-shadow:0 12px 40px rgba(0,0,0,.4);background:#111}
+.v55-gallery-close,.v55-gallery-prev,.v55-gallery-next{position:absolute;border:0;border-radius:50%;width:44px;height:44px;background:#fff;color:#17262d;font-size:25px;font-weight:900;cursor:pointer;z-index:2}
+.v55-gallery-close{top:4px;left:4px}
+.v55-gallery-prev{right:4px}
+.v55-gallery-next{left:4px}
+.v55-gallery-count{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:#000b;color:#fff;padding:7px 12px;border-radius:999px;font-size:12px}
+.v55-share-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.v55-share-btn{border:0;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}
+.v55-share-details{background:#1d2942;color:#fff}
+.v55-share-photos{background:#b8953f;color:#fff}
+.v55-share-video{background:#8b4db3;color:#fff}
+@media(max-width:600px){
+  .v55-gallery{padding:10px}
+  .v55-gallery-box{height:78vh}
+  .v55-gallery-img{max-width:92%;max-height:70vh}
+  .v55-gallery-close,.v55-gallery-prev,.v55-gallery-next{width:40px;height:40px}
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
@@ -61,8 +84,16 @@ function apartments(){return `<div class="panel"><div class="head"><h3>إدار�
 function drawA(){let q=($("aq")?.value||"").toLowerCase(),ar=$("af")?.value||"",st=$("as")?.value||"";let x=D.apartments.filter(a=>(a.number+" "+a.area).toLowerCase().includes(q)&&(!ar||a.area===ar)&&(!st||a.status===st));$("alist").innerHTML=x.length?x.map(card).join(""):'<div class="empty">لا توجد نتائج</div>'}
 function aForm(a={}){return `<div class="formgrid"><div class="field"><label>رقم الشقة</label><input id="an" value="${esc(a.number)}"></div><div class="field"><label>المنطقة</label><select id="aa">${D.areas.map(x=>`<option value="${x.id}" ${(x.id===a.area_id||x.name===a.area)?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>الحالة</label><select id="ast">${statuses.map(s=>`<option ${s===a.status?"selected":""}>${s}</option>`).join("")}</select></div><div class="field"><label>الإيجار الشهري (د.أ)</label><input id="ar" type="number" value="${a.rent||0}"></div><div class="field"><label>المساحة (م²)</label><input id="az" type="number" value="${a.size_m2||0}"></div><div class="field"><label>الغرف</label><input id="ro" type="number" value="${a.rooms||2}"></div><div class="field"><label>الحمامات</label><input id="ba" type="number" value="${a.baths||1}"></div><div class="field"><label>الطابق</label><input id="fl" type="number" value="${a.floor||1}"></div><div class="field full"><label>ملاحظات</label><textarea id="no">${esc(a.notes)}</textarea></div></div>`}
 function addA(){modal(`<div class="modalhead"><h3>إضافة شقة جديدة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm()}<button class="btn primary" style="margin-top:14px" onclick="saveA()">حفظ</button>`)}
-function editA(id){let a=D.apartments.find(x=>x.id===id);let photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='فيديو شقة');modal(`<div class="modalhead"><h3>الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm(a)}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة • حتى 30 صورة في الرفع الواحد</span></div>${me.role!=="user"?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:""}<div id="photos_${id}" class="photos">${photos.length?photos.map(photoHtml).join(""): '<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>🎥 فيديو الشقة</h3><span class="muted">${videos.length} فيديو</span></div>${me.role!=="user"?`<input id="apVideo" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onchange="uploadApartmentVideo(${id})">`:""}${videos.length?videos.map(videoHtml).join(""):'<div class="photoempty">لا يوجد فيديو لهذه الشقة</div>'}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" onclick="saveA(${id})">حفظ</button>${me.role==="owner"?`<button class="btn danger" onclick="delA(${id})">حذف</button>`:""}</div>`)}
-function photoHtml(d){return `<div class="photo" data-apartment="${d.apartment_id}"><img src="/uploads/${encodeURIComponent(d.filename)}" alt="${esc(d.original_name)}"><button onclick="deletePhoto(${d.id})">حذف</button></div>`}
+function editA(id){let a=D.apartments.find(x=>x.id===id);let photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='فيديو شقة');modal(`<div class="modalhead"><h3>الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm(a)}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة • حتى 30 صورة في الرفع الواحد</span></div>${me.role!=="user"?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:""}<div id="photos_${id}" class="photos">${photos.length?photos.map((p,i)=>photoHtml(p,i)).join(""): '<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>🎥 فيديو الشقة</h3><span class="muted">${videos.length} فيديو</span></div>${me.role!=="user"?`<input id="apVideo" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onchange="uploadApartmentVideo(${id})">`:""}${videos.length?videos.map(videoHtml).join(""):'<div class="photoempty">لا يوجد فيديو لهذه الشقة</div>'}
+<div class="v55-share-row">
+  ${me.role==="owner"?`
+  <button class="v55-share-btn v55-share-details" onclick="shareApartmentDetails(${id})">↗ مشاركة تفاصيل الشقة</button>
+  <button class="v55-share-btn v55-share-photos" onclick="shareApartmentPhotos(${id})">🖼 مشاركة الصور</button>
+  ${videos.length?`<button class="v55-share-btn v55-share-video" onclick="shareApartmentVideo(${id})">🎥 مشاركة الفيديو</button>`:""}
+  `:""}
+</div>
+</div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" onclick="saveA(${id})">حفظ</button>${me.role==="owner"?`<button class="btn danger" onclick="delA(${id})">حذف</button>`:""}</div>`)}
+function photoHtml(d,i){return `<div class="photo" data-apartment="${d.apartment_id}" onclick="openApartmentGallery(${d.apartment_id},${i})"><img src="/uploads/${encodeURIComponent(d.filename)}" alt="${esc(d.original_name)}"><button onclick="event.stopPropagation();deletePhoto(${d.id})">حذف</button></div>`}
 function videoHtml(d){return `<div class="video-wrap"><video controls preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row"><span class="muted">${esc(d.original_name)}</span><button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button></div></div>`}
 
 async function shareApartment(id){
@@ -117,10 +148,254 @@ async function shareApartment(id){
   }
 }
 
+
+async function shareFilesForApartment(id, kind){
+  try{
+    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
+    const a=D.apartments.find(x=>x.id===id);
+    if(!a) throw Error("الشقة غير موجودة");
+    let docs=[];
+    let title="";
+    if(kind==="photos"){
+      docs=D.documents.filter(d=>d.apartment_id===id&&d.kind==="صورة شقة");
+      title=`صور شقة ${a.number}`;
+      if(!docs.length){alert("لا توجد صور لهذه الشقة");return;}
+    }else if(kind==="video"){
+      docs=D.documents.filter(d=>d.apartment_id===id&&d.kind==="فيديو شقة");
+      title=`فيديو شقة ${a.number}`;
+      if(!docs.length){alert("لا يوجد فيديو لهذه الشقة");return;}
+    }
+
+    if(!navigator.share){
+      const links=docs.map(d=>location.origin+"/uploads/"+encodeURIComponent(d.filename));
+      await navigator.clipboard.writeText(links.join("\\n"));
+      alert("تم نسخ روابط الملفات. متصفحك لا يدعم مشاركة الملفات مباشرة.");
+      return;
+    }
+
+    const files=[];
+    for(const d of docs){
+      const r=await fetch("/uploads/"+encodeURIComponent(d.filename),{credentials:"same-origin"});
+      if(!r.ok) continue;
+      const blob=await r.blob();
+      const fallbackType=kind==="video"?"video/mp4":"image/jpeg";
+      files.push(new File([blob],d.original_name||d.filename,{type:blob.type||fallbackType}));
+    }
+
+    if(files.length && navigator.canShare && navigator.canShare({files})){
+      await navigator.share({title,files});
+    }else{
+      const links=docs.map(d=>location.origin+"/uploads/"+encodeURIComponent(d.filename));
+      await navigator.share({title,text:links.join("\\n")});
+    }
+  }catch(e){
+    if(e?.name==="AbortError") return;
+    alert("تعذر مشاركة الملف. جرّب مرة أخرى.");
+  }
+}
+
+async function shareApartmentPhotos(id){return shareFilesForApartment(id,"photos")}
+async function shareApartmentVideo(id){return shareFilesForApartment(id,"video")}
+
+async function shareApartmentDetails(id){
+  try{
+    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
+    const a=D.apartments.find(x=>x.id===id);
+    if(!a) throw Error("الشقة غير موجودة");
+    const text=[
+      `🏠 شقة ${a.number}`,
+      `المنطقة: ${a.area||"—"}`,
+      `الحالة: ${a.status||"—"}`,
+      `الغرف: ${a.rooms||0} | الحمامات: ${a.baths||0}`,
+      `الصالات: ${a.living_rooms||0} | الصالونات: ${a.salons||0} | البلكونات: ${a.balconies||0}`,
+      `المساحة: ${a.size_m2||0} م² | الطابق: ${a.floor||0}`,
+      `الإيجار: ${Number(a.rent||0).toLocaleString()} د.أ / شهر`,
+      `الملاحظات: ${a.notes||"—"}`
+    ].join("\\n");
+    if(navigator.share){
+      await navigator.share({title:`تفاصيل شقة ${a.number}`,text});
+    }else{
+      await navigator.clipboard.writeText(text);
+      alert("تم نسخ تفاصيل الشقة.");
+    }
+  }catch(e){
+    if(e?.name==="AbortError") return;
+    alert("تعذر مشاركة التفاصيل.");
+  }
+}
+
+function openApartmentGallery(apartmentId,index){
+  const photos=D.documents.filter(d=>d.apartment_id===apartmentId&&d.kind==="صورة شقة");
+  if(!photos.length)return;
+  let i=Math.max(0,Math.min(index||0,photos.length-1));
+  const box=document.createElement("div");
+  box.className="v55-gallery";
+  box.innerHTML=`
+    <div class="v55-gallery-box">
+      <button class="v55-gallery-close" aria-label="إغلاق">×</button>
+      <button class="v55-gallery-prev" aria-label="الصورة السابقة">›</button>
+      <img class="v55-gallery-img" alt="صورة الشقة">
+      <button class="v55-gallery-next" aria-label="الصورة التالية">‹</button>
+      <div class="v55-gallery-count"></div>
+    </div>`;
+  document.body.appendChild(box);
+  const img=box.querySelector(".v55-gallery-img");
+  const count=box.querySelector(".v55-gallery-count");
+  const render=()=>{
+    const p=photos[i];
+    img.src="/uploads/"+encodeURIComponent(p.filename);
+    img.alt=p.original_name||"صورة الشقة";
+    count.textContent=`${i+1} / ${photos.length}`;
+  };
+  const next=()=>{i=(i+1)%photos.length;render()};
+  const prev=()=>{i=(i-1+photos.length)%photos.length;render()};
+  box.querySelector(".v55-gallery-close").onclick=()=>box.remove();
+  box.querySelector(".v55-gallery-next").onclick=next;
+  box.querySelector(".v55-gallery-prev").onclick=prev;
+  box.onclick=e=>{if(e.target===box)box.remove()};
+  document.addEventListener("keydown",function handler(e){
+    if(!document.body.contains(box)){document.removeEventListener("keydown",handler);return}
+    if(e.key==="Escape"){box.remove();document.removeEventListener("keydown",handler)}
+    if(e.key==="ArrowLeft")next();
+    if(e.key==="ArrowRight")prev();
+  });
+  let sx=null;
+  img.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});
+  img.addEventListener("touchend",e=>{
+    if(sx===null)return;
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>40)(dx<0?next:prev)();
+    sx=null;
+  },{passive:true});
+  render();
+}
+
 async function uploadApartmentPhotos(id){try{let input=$("apPhotos");if(!input.files.length)return;let fd=new FormData();[...input.files].forEach(f=>fd.append("photos",f));let r=await fetch("/api/apartments/"+id+"/photos",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الصور");alert("تم رفع الصور بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
 async function uploadApartmentVideo(id){try{let input=$("apVideo");if(!input.files.length)return;let fd=new FormData();fd.append("video",input.files[0]);let r=await fetch("/api/apartments/"+id+"/video",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الفيديو");alert("تم رفع الفيديو بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
 async function deletePhoto(id){if(!confirm("حذف هذه الصورة؟"))return;try{let d=D.documents.find(x=>x.id===id);await api("/api/documents/"+id,{method:"DELETE"});await load();if(d)editA(d.apartment_id);else closeM();}catch(e){alert(e.message)}}
 async function deleteVideo(id,apartmentId){if(!confirm("حذف فيديو الشقة؟"))return;try{await api("/api/documents/"+id,{method:"DELETE"});await load();editA(apartmentId)}catch(e){alert(e.message)}}
+
+async function shareFilesForApartment(id, kind){
+  try{
+    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
+    const a=D.apartments.find(x=>x.id===id);
+    if(!a) throw Error("الشقة غير موجودة");
+    let docs=[];
+    let title="";
+    if(kind==="photos"){
+      docs=D.documents.filter(d=>d.apartment_id===id&&d.kind==="صورة شقة");
+      title=`صور شقة ${a.number}`;
+      if(!docs.length){alert("لا توجد صور لهذه الشقة");return;}
+    }else if(kind==="video"){
+      docs=D.documents.filter(d=>d.apartment_id===id&&d.kind==="فيديو شقة");
+      title=`فيديو شقة ${a.number}`;
+      if(!docs.length){alert("لا يوجد فيديو لهذه الشقة");return;}
+    }
+
+    if(!navigator.share){
+      const links=docs.map(d=>location.origin+"/uploads/"+encodeURIComponent(d.filename));
+      await navigator.clipboard.writeText(links.join("\\n"));
+      alert("تم نسخ روابط الملفات. متصفحك لا يدعم مشاركة الملفات مباشرة.");
+      return;
+    }
+
+    const files=[];
+    for(const d of docs){
+      const r=await fetch("/uploads/"+encodeURIComponent(d.filename),{credentials:"same-origin"});
+      if(!r.ok) continue;
+      const blob=await r.blob();
+      const fallbackType=kind==="video"?"video/mp4":"image/jpeg";
+      files.push(new File([blob],d.original_name||d.filename,{type:blob.type||fallbackType}));
+    }
+
+    if(files.length && navigator.canShare && navigator.canShare({files})){
+      await navigator.share({title,files});
+    }else{
+      const links=docs.map(d=>location.origin+"/uploads/"+encodeURIComponent(d.filename));
+      await navigator.share({title,text:links.join("\\n")});
+    }
+  }catch(e){
+    if(e?.name==="AbortError") return;
+    alert("تعذر مشاركة الملف. جرّب مرة أخرى.");
+  }
+}
+
+async function shareApartmentPhotos(id){return shareFilesForApartment(id,"photos")}
+async function shareApartmentVideo(id){return shareFilesForApartment(id,"video")}
+
+async function shareApartmentDetails(id){
+  try{
+    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
+    const a=D.apartments.find(x=>x.id===id);
+    if(!a) throw Error("الشقة غير موجودة");
+    const text=[
+      `🏠 شقة ${a.number}`,
+      `المنطقة: ${a.area||"—"}`,
+      `الحالة: ${a.status||"—"}`,
+      `الغرف: ${a.rooms||0} | الحمامات: ${a.baths||0}`,
+      `الصالات: ${a.living_rooms||0} | الصالونات: ${a.salons||0} | البلكونات: ${a.balconies||0}`,
+      `المساحة: ${a.size_m2||0} م² | الطابق: ${a.floor||0}`,
+      `الإيجار: ${Number(a.rent||0).toLocaleString()} د.أ / شهر`,
+      `الملاحظات: ${a.notes||"—"}`
+    ].join("\\n");
+    if(navigator.share){
+      await navigator.share({title:`تفاصيل شقة ${a.number}`,text});
+    }else{
+      await navigator.clipboard.writeText(text);
+      alert("تم نسخ تفاصيل الشقة.");
+    }
+  }catch(e){
+    if(e?.name==="AbortError") return;
+    alert("تعذر مشاركة التفاصيل.");
+  }
+}
+
+function openApartmentGallery(apartmentId,index){
+  const photos=D.documents.filter(d=>d.apartment_id===apartmentId&&d.kind==="صورة شقة");
+  if(!photos.length)return;
+  let i=Math.max(0,Math.min(index||0,photos.length-1));
+  const box=document.createElement("div");
+  box.className="v55-gallery";
+  box.innerHTML=`
+    <div class="v55-gallery-box">
+      <button class="v55-gallery-close" aria-label="إغلاق">×</button>
+      <button class="v55-gallery-prev" aria-label="الصورة السابقة">›</button>
+      <img class="v55-gallery-img" alt="صورة الشقة">
+      <button class="v55-gallery-next" aria-label="الصورة التالية">‹</button>
+      <div class="v55-gallery-count"></div>
+    </div>`;
+  document.body.appendChild(box);
+  const img=box.querySelector(".v55-gallery-img");
+  const count=box.querySelector(".v55-gallery-count");
+  const render=()=>{
+    const p=photos[i];
+    img.src="/uploads/"+encodeURIComponent(p.filename);
+    img.alt=p.original_name||"صورة الشقة";
+    count.textContent=`${i+1} / ${photos.length}`;
+  };
+  const next=()=>{i=(i+1)%photos.length;render()};
+  const prev=()=>{i=(i-1+photos.length)%photos.length;render()};
+  box.querySelector(".v55-gallery-close").onclick=()=>box.remove();
+  box.querySelector(".v55-gallery-next").onclick=next;
+  box.querySelector(".v55-gallery-prev").onclick=prev;
+  box.onclick=e=>{if(e.target===box)box.remove()};
+  document.addEventListener("keydown",function handler(e){
+    if(!document.body.contains(box)){document.removeEventListener("keydown",handler);return}
+    if(e.key==="Escape"){box.remove();document.removeEventListener("keydown",handler)}
+    if(e.key==="ArrowLeft")next();
+    if(e.key==="ArrowRight")prev();
+  });
+  let sx=null;
+  img.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});
+  img.addEventListener("touchend",e=>{
+    if(sx===null)return;
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>40)(dx<0?next:prev)();
+    sx=null;
+  },{passive:true});
+  render();
+}
+
 async function uploadApartmentPhotos(id){try{let input=$("apPhotos");if(!input.files.length)return;let fd=new FormData();[...input.files].forEach(f=>fd.append("photos",f));let r=await fetch("/api/apartments/"+id+"/photos",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الصور");alert("تم رفع الصور بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
 async function deletePhoto(id){if(!confirm("حذف هذه الصورة؟"))return;try{await api("/api/documents/"+id,{method:"DELETE"});await load();let d=D.documents.find(x=>x.id===id);if(d)editA(d.apartment_id);else closeM();}catch(e){alert(e.message)}}
 async function saveA(id){try{let b={number:an.value,area_id:+aa.value,status:ast.value,rent:+ar.value,size_m2:+az.value,rooms:+ro.value,baths:+ba.value,kitchen:1,floor:+fl.value,notes:no.value};await api(id?"/api/apartments/"+id:"/api/apartments",{method:id?"PUT":"POST",body:JSON.stringify(b)});closeM();await load()}catch(e){alert(e.message)}}
@@ -186,7 +461,7 @@ load();
     return `🏠 ${title}\n━━━━━━━━━━━━\n${text}`;
   }
 
-  function addShareButtons(){if(typeof me!=="undefined" && me?.role!=="owner")return;
+  function addShareButtons(){return;
     document.querySelectorAll("article,.card,.apartment-card,[data-apartment-id]").forEach(card=>{
       if(card.dataset.v4ShareDone || card.querySelector(".v4-share")) return;
       const hasApartment = /شقة|غرفة|إيجار|حمام/.test(card.innerText||"");
