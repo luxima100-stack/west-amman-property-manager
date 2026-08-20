@@ -1,1 +1,1 @@
-{"name":"west-amman-rentals","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.js"},"dependencies":{"bcryptjs":"^2.4.3","better-sqlite3":"^11.3.0","express":"^5.1.0","express-session":"^1.18.2","multer":"^2.0.2","uuid":"^11.1.0"}}
+{"name":"west-amman-rentals","version":"1.0.0","private":true,"scripts":{"start":"node server.js"},"dependencies":{"express":"^4.21.2","multer":"^1.4.5-lts.1","better-sqlite3":"^11.8.1"}}
