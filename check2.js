@@ -7,17 +7,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&
 async function api(url,opt={}){opt.headers={...(opt.headers||{}),Authorization:"Bearer "+token};if(opt.body&&!opt.headers["Content-Type"])opt.headers["Content-Type"]="application/json";let r=await fetch(url,opt);let j=await r.json();if(!r.ok)throw Error(j.error||"خطأ");return j}
 function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>بيانات التجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" autocomplete="username" value="owner"></div><div class="field"><label>كلمة المرور</label><div class="v541-password-box"><input id="lp" autocomplete="current-password" type="password" value="1234"><button type="button" class="v541-eye" onclick="toggleLoginPassword()">👁️</button></div></div><div id="loginError" class="notice danger-note" style="display:none;margin-top:10px"></div><button id="loginBtn" class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
 function toggleLoginPassword(){const x=$("lp");if(!x)return;x.type=x.type==="password"?"text":"password";const b=document.querySelector(".v541-eye");if(b)b.textContent=x.type==="password"?"👁️":"🙈";}
-async function doLogin(){const btn=$("loginBtn"),err=$("loginError");try{
- const username=($("lu")?.value||"").trim(),password=$("lp")?.value||"";
- if(!username||!password)throw Error("يرجى إدخال اسم المستخدم وكلمة المرور");
- if(btn){btn.disabled=true;btn.textContent="جاري تسجيل الدخول…"}
- const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({username,password})});
- const raw=await r.text();let j={};try{j=JSON.parse(raw)}catch{throw Error("تعذر الاتصال بخادم تسجيل الدخول")}
- if(!r.ok||!j.token)throw Error(j.error||"اسم المستخدم أو كلمة المرور غير صحيحة");
- token=j.token;me=j.user;
- localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));
- await load();
-}catch(e){if(err){err.textContent=e.message||"تعذر تسجيل الدخول";err.style.display="block"}else alert(e.message);if(btn){btn.disabled=false;btn.textContent="تسجيل الدخول"}}}{try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
+async function doLogin(){return window.earlyLogin();}
 async function load(){
  if(!token||!me){return login();}
  try{D=await api("/api/bootstrap");render();}
