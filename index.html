@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="app-version" content="5.42.0">
+<meta name="app-version" content="5.45.0">
 <meta name="theme-color" content="#20142b"><link rel="manifest" href="/manifest.json">
 <title>إدارة عقارات غرب عمّان</title>
 <style>
@@ -647,7 +647,50 @@ body{background:#08101a!important;color:#f8f3e7!important}
 </style>
 
 </head>
-<body><div id="root"><div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">جارٍ تشغيل النظام...</p></div></div></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
+<body><div id="root"><div id="fallbackLogin" class="login">
+ <div class="loginbox">
+  <div class="logo">⌂</div>
+  <h1>إدارة عقارات غرب عمّان</h1>
+  <p class="muted" style="text-align:center">تسجيل الدخول إلى النظام</p>
+  <div class="field"><label>اسم المستخدم</label><input id="earlyUser" autocomplete="username" value="owner"></div>
+  <div class="field"><label>كلمة المرور</label><div class="v541-password-box"><input id="earlyPass" autocomplete="current-password" type="password" value="1234"><button type="button" class="v541-eye" onclick="earlyToggle()">👁️</button></div></div>
+  <div id="earlyError" class="notice danger-note" style="display:none;margin-top:10px"></div>
+  <button id="earlyBtn" class="btn primary" type="button" onclick="earlyLogin()">تسجيل الدخول</button>
+ </div>
+</div></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
+
+<script id="v545-early-login">
+(function(){
+ window.earlyToggle=function(){
+   var x=document.getElementById("earlyPass"),b=document.querySelector("#fallbackLogin .v541-eye");
+   if(!x)return;
+   x.type=x.type==="password"?"text":"password";
+   if(b)b.textContent=x.type==="password"?"👁️":"🙈";
+ };
+ window.earlyLogin=async function(){
+   var u=document.getElementById("earlyUser"),p=document.getElementById("earlyPass"),
+       b=document.getElementById("earlyBtn"),e=document.getElementById("earlyError");
+   try{
+     var username=(u.value||"").trim(),password=p.value||"";
+     if(!username||!password)throw Error("يرجى إدخال اسم المستخدم وكلمة المرور");
+     b.disabled=true;b.textContent="جاري تسجيل الدخول…";e.style.display="none";
+     var r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",
+       body:JSON.stringify({username:username,password:password})});
+     var t=await r.text(),j={};
+     try{j=JSON.parse(t)}catch(_){throw Error("الخادم لم يُرجع استجابة صحيحة")};
+     if(!r.ok||!j.token)throw Error(j.error||"اسم المستخدم أو كلمة المرور غير صحيحة");
+     localStorage.setItem("wa_token",j.token);
+     localStorage.setItem("wa_me",JSON.stringify(j.user||{}));
+     e.className="notice";e.style.display="block";e.textContent="تم الدخول، جارٍ فتح النظام…";
+     setTimeout(function(){location.reload()},100);
+   }catch(x){
+     e.className="notice danger-note";e.style.display="block";e.textContent=x.message||"تعذر تسجيل الدخول";
+     b.disabled=false;b.textContent="تسجيل الدخول";
+   }
+ };
+})();
+</script>
+
 <script>
 let token=localStorage.getItem("wa_token"),me=null,D=null,page="home",search="";
 try{me=JSON.parse(localStorage.getItem("wa_me")||"null")}catch(e){localStorage.removeItem("wa_me");localStorage.removeItem("wa_token");token=null;me=null}
