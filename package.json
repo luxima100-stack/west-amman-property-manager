@@ -1,6 +1,6 @@
 {
   "name": "west-amman-property-manager",
-  "version": "5.41.2",
+  "version": "5.39.1",
   "private": true,
   "type": "module",
   "scripts": {
