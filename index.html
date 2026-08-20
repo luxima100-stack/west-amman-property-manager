@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="app-version" content="5.42.0">
 <meta name="theme-color" content="#20142b"><link rel="manifest" href="/manifest.json">
 <title>إدارة عقارات غرب عمّان</title>
 <style>
@@ -637,7 +638,8 @@ body{background:#08101a!important;color:#f8f3e7!important}
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
-let token=localStorage.getItem("wa_token"),me=JSON.parse(localStorage.getItem("wa_me")||"null"),D=null,page="home",search="";
+let token=localStorage.getItem("wa_token"),me=null,D=null,page="home",search="";
+try{me=JSON.parse(localStorage.getItem("wa_me")||"null")}catch(e){localStorage.removeItem("wa_me");localStorage.removeItem("wa_token");token=null;me=null}
 const statuses=["متاحة","قريبة من التوفر","الحجز ينتهي قريباً","مؤجرة / محجوزة","غير متاحة / صيانة"];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
@@ -655,7 +657,11 @@ async function doLogin(){const btn=$("loginBtn"),err=$("loginError");try{
  localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));
  await load();
 }catch(e){if(err){err.textContent=e.message||"تعذر تسجيل الدخول";err.style.display="block"}else alert(e.message);if(btn){btn.disabled=false;btn.textContent="تسجيل الدخول"}}}{try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
-async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
+async function load(){
+ if(!token||!me){return login();}
+ try{D=await api("/api/bootstrap");render();}
+ catch(e){localStorage.removeItem("wa_token");localStorage.removeItem("wa_me");token=null;me=null;login();}
+}
 function nav(p){page=p;search="";render()}
 function role(){return me.role==="owner"?"المالك":me.role==="admin"?"مسؤول النظام":"مستخدم عادي"}
 function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",security:"النسخ الاحتياطي والحماية",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo v513-logo3d v539-logo"><img src="/west-amman-luxury-logo.jpg" alt="عقارات عمان الغربية"></div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
@@ -1289,6 +1295,25 @@ function homeAccessControl(){
 .danger-note{border-color:#e5a4a7!important;background:#fff1f1!important;color:#8e2228!important}
 @media(max-width:600px){.backup-status-grid{grid-template-columns:1fr}.backup-row{align-items:flex-start}.backup-row .btn{white-space:nowrap}}
 </style>
+
+
+<script id="v542-startup-guard">
+window.addEventListener("DOMContentLoaded",function(){
+  setTimeout(function(){
+    try{
+      const root=document.getElementById("root");
+      if(!root)return;
+      if(!root.innerHTML.trim()){
+        if(typeof login==="function") login();
+        else root.innerHTML='<div style="padding:40px;text-align:center;font-size:20px">تعذر تشغيل الواجهة. يرجى تحديث الصفحة.</div>';
+      }
+    }catch(e){
+      const root=document.getElementById("root");
+      if(root)root.innerHTML='<div style="padding:40px;text-align:center;font-size:20px">تعذر تشغيل الواجهة. يرجى تحديث الصفحة.</div>';
+    }
+  },300);
+});
+</script>
 
 </body>
 </html>
