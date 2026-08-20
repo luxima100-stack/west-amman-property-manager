@@ -333,6 +333,7 @@ function hasPerm(user,perm){
   return !!db.prepare("SELECT 1 FROM user_permissions WHERE user_id=? AND permission=? AND enabled=1").get(user.id,perm);
 }
 function permissionForPath(path){
+  if(path==="/api/home") return "home";
   if(path.includes("/api/apartments") || path.includes("/api/documents")) return "apartments";
   if(path.includes("/api/tenants")) return "tenants";
   if(path.includes("/api/payments")) return "finance";
