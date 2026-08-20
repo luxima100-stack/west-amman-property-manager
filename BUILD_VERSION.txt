@@ -1,0 +1,4 @@
+West Amman Property Manager
+Release: 5.22.0
+Backup fix: no tar module; backup/restore uses zip/unzip commands.
+Node: 22.22.0

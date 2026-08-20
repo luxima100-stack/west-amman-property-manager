@@ -7,7 +7,6 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile, execFileSync } from "node:child_process";
-import tar from "tar";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -29,9 +28,17 @@ function writeBackupState(patch){
   try{const current=readBackupState();fs.writeFileSync(BACKUP_STATE,JSON.stringify({...current,...patch},null,2));}catch{}
 }
 function pruneBackups(){
-  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort();
+  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".zip")).sort();
   while(files.length>10){const old=files.shift();try{fs.unlinkSync(path.join(BACKUP_DIR,old));}catch{}}
   return files.slice(-10);
+}
+function runCommand(cmd,args,opts={}){
+  return new Promise((resolve,reject)=>{
+    execFile(cmd,args,{...opts,maxBuffer:10*1024*1024},(error,stdout,stderr)=>{
+      if(error){error.message=`${error.message}${stderr?` — ${stderr.trim()}`:""}`;reject(error);return;}
+      resolve(stdout);
+    });
+  });
 }
 function autoBackup(reason="auto"){
   if(backupRunning) return Promise.resolve({ok:false,skipped:true,reason:"running"});
@@ -41,35 +48,26 @@ function autoBackup(reason="auto"){
       try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch{}
       const stamp=new Date().toISOString().replace(/[:.]/g,"-");
       const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
-      const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
-      const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
-      await tar.c({gzip:true,file:out,cwd:__dirname},items);
+      const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.zip`);
+      const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg","package-lock.json",".node-version"].filter(x=>fs.existsSync(path.join(__dirname,x)));
+      await runCommand("zip",["-q","-r",out,...items],{cwd:__dirname});
       const kept=pruneBackups();
       const now=new Date().toISOString();
       writeBackupState({lastSuccessAt:now,lastSuccessFile:path.basename(out),lastReason:reason,lastError:null,lastAttemptAt:now,keptCount:kept.length});
       return {ok:true,file:path.basename(out),keptCount:kept.length};
     }catch(err){
       const msg=String(err?.message||err);
-      try{
-        const partial=fs.readdirSync(BACKUP_DIR).find(f=>f.endsWith('.tar.gz') && f.includes(String(new Date().getUTCFullYear())));
-        if(partial){ /* keep existing valid backups; do not delete unrelated backups */ }
-      }catch{}
       writeBackupState({lastError:msg,lastAttemptAt:new Date().toISOString()});
       return {ok:false,error:msg};
     }finally{ backupRunning=false; }
   })();
 }
-
 async function listBackupArchive(file){
-  const entries=[];
-  await tar.t({file,onentry:e=>entries.push(e.path.replace(/^\.\//,''))});
-  return entries.filter(Boolean);
+  const out=await runCommand("unzip",["-Z1",file]);
+  return out.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
 }
 async function extractBackupData(file,dest){
-  await tar.x({file,cwd:dest,noMtime:true,filter:p=>{
-    const clean=p.replace(/^\.\//,'');
-    return clean==='data.db' || clean==='uploads' || clean.startsWith('uploads/');
-  }});
+  await runCommand("unzip",["-q","-o",file,"data.db","uploads/*","-d",dest]);
 }
 
 const db = new Database(DB_FILE);
@@ -469,21 +467,21 @@ app.delete("/api/logs",auth,(req,res)=>{
 
 app.get("/api/backup/status",auth,(req,res)=>{
   if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
-  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort().reverse().slice(0,10);
+  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".zip")).sort().reverse().slice(0,10);
   const state=readBackupState();
   res.json({ok:true,state,backups:files.map(name=>{const st=fs.statSync(path.join(BACKUP_DIR,name));return {name,size:st.size,created_at:st.mtime.toISOString()};})});
 });
 app.post("/api/backup/now",auth,async(req,res)=>{
   if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
   const result=await autoBackup("manual");
-  if(!result.ok) return res.status(500).json({error:"تعذر إنشاء النسخة الاحتياطية"});
+  if(!result.ok) return res.status(500).json({error:result.error||"تعذر إنشاء النسخة الاحتياطية"});
   log("نسخة احتياطية","تم إنشاء نسخة احتياطية يدوية",req.user.username);
   res.json(result);
 });
 app.get("/api/backup/download/:name",auth,(req,res)=>{
   if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
   const name=path.basename(String(req.params.name||""));
-  if(!/^west-amman-[A-Za-z0-9_-]+\.tar\.gz$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
+  if(!/^west-amman-[A-Za-z0-9_-]+\.zip$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
   const file=path.join(BACKUP_DIR,name);
   if(!fs.existsSync(file)) return res.status(404).json({error:"النسخة غير موجودة"});
   res.download(file,name);
@@ -492,22 +490,22 @@ app.get("/api/backup/download/:name",auth,(req,res)=>{
 app.post("/api/backup/restore/:name",auth,async(req,res)=>{
   if(req.user.role!=="owner") return res.status(403).json({error:"الاسترجاع متاح للمالك فقط"});
   const name=path.basename(String(req.params.name||""));
-  if(!/^west-amman-[A-Za-z0-9_-]+\.tar\.gz$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
+  if(!/^west-amman-[A-Za-z0-9_-]+\.zip$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
   const archive=path.join(BACKUP_DIR,name);
   if(!fs.existsSync(archive)) return res.status(404).json({error:"النسخة غير موجودة"});
   const temp=path.join(BACKUP_DIR,`.restore-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const protectedArchive=path.join(__dirname,`.restore-protected-${Date.now()}-${Math.random().toString(36).slice(2)}.tar.gz`);
+  const protectedArchive=path.join(__dirname,`.restore-protected-${Date.now()}-${Math.random().toString(36).slice(2)}.zip`);
   let switched=false, oldDb=null, oldUploads=null;
   try{
     fs.copyFileSync(archive,protectedArchive);
     const pre=await autoBackup("before-restore");
     if(!pre.ok) return res.status(500).json({error:"تعذر إنشاء نسخة أمان قبل الاسترجاع"});
     fs.mkdirSync(temp,{recursive:true});
-    const listing=requireChildTarList(protectedArchive);
+    const listing=await listBackupArchive(protectedArchive);
     const unsafe=listing.find(x=>x.startsWith("/") || x.includes("../") || x.includes("\\"));
     if(unsafe) throw Error("النسخة الاحتياطية غير صالحة للاسترجاع");
     if(!listing.includes("data.db") || !listing.some(x=>x==="uploads" || x.startsWith("uploads/"))) throw Error("النسخة لا تحتوي على قاعدة البيانات والصور");
-    execFileSyncSafeTarExtract(protectedArchive,temp);
+    await extractBackupData(protectedArchive,temp);
     if(!fs.existsSync(path.join(temp,"data.db"))) throw Error("قاعدة البيانات غير موجودة داخل النسخة");
     if(!fs.existsSync(path.join(temp,"uploads"))) throw Error("مجلد الصور غير موجود داخل النسخة");
     fs.writeFileSync(RESTORE_STATE,JSON.stringify({backup:name,user:req.user.username,requestedAt:new Date().toISOString(),preRestoreBackup:pre.file},null,2));

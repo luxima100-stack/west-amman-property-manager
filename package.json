@@ -1,6 +1,6 @@
 {
   "name": "west-amman-property-manager",
-  "version": "5.20.0",
+  "version": "5.22.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,10 @@
     "better-sqlite3": "^11.7.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
-    "tar": "^7.4.3"
+    "multer": "^1.4.5-lts.1"
+  },
+  "engines": {
+    "node": "22.22.0",
+    "npm": ">=10"
   }
 }
