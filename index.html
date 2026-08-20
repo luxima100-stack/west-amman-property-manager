@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#20142b"><link rel="manifest" href="/manifest.json">
-<title>إدارة عقارات غرب عمّان</title>
+<title>إدارة عقارات غرب عمّان — دخول محمي</title>
 <style>
 :root{--n:#102f3b;--n2:#0a222c;--g:#c8a45d;--g2:#ead59f;--bg:#f5f1e9;--c:#fffdf8;--t:#17262d;--m:#73818a;--line:#e7dfd1;--ok:#159a68;--bad:#d63f42;--blue:#277fd4;--orange:#ed8a1c;--shadow:0 12px 32px #09202b12}
 *{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--t)}button,input,select,textarea{font:inherit}button{cursor:pointer}
@@ -617,7 +617,7 @@ const statuses=["متاحة","قريبة من التوفر","الحجز ينته
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 async function api(url,opt={}){opt.headers={...(opt.headers||{}),Authorization:"Bearer "+token};if(opt.body&&!opt.headers["Content-Type"])opt.headers["Content-Type"]="application/json";let r=await fetch(url,opt);let j=await r.json();if(!r.ok)throw Error(j.error||"خطأ");return j}
-function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><div class="final-pass-row"><input id="lp" type="password" value="1234" autocomplete="current-password"><button type="button" class="btn final-pass-toggle" onclick="toggleFinalPass('lp',this)">👁</button></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
+function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">الدخول محمي — أدخل بيانات حسابك</p><div class="notice" style="margin:12px 0;background:#f7f0e3;border:1px solid #d8bf82;color:#5b4720;text-align:center">🔐 لا يمكن الوصول إلى بيانات النظام أو لوحة الإدارة دون اسم المستخدم وكلمة المرور.</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="" autocomplete="username" placeholder="أدخل اسم المستخدم"></div><div class="field"><label>كلمة المرور</label><div class="final-pass-row"><input id="lp" type="password" value="" autocomplete="current-password" placeholder="أدخل كلمة المرور"><button type="button" class="btn final-pass-toggle" onclick="toggleFinalPass('lp',this)">👁</button></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
 let loginBusy=false;
 async function doLogin(){
   if(loginBusy)return;
