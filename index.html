@@ -555,294 +555,46 @@ if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch
 load();
 </script>
 
-<script id="v4-enhancements-js">
-/* v4: Rooms, bathrooms, living room/salon/balcony + owner sharing.
-   The script augments common forms and cards while preserving the existing app. */
-(function(){
-  const labels = [
-    ["rooms","عدد الغرف","number"],
-    ["bathrooms","عدد الحمامات","number"],
-    ["living_rooms","عدد الصالات","number"],
-    ["salons","عدد الصالونات","number"],
-    ["balconies","عدد البلكونات","number"]
-  ];
 
-  function addFieldsToForms(){
-    document.querySelectorAll("form").forEach(form=>{
-      if(form.dataset.v4Done) return;
-      const text = (form.innerText||"").toLowerCase();
-      if(!text.includes("شقة") && !form.querySelector('[name="apartment_id"]')) return;
-      const anchor = form.querySelector("button[type=submit], button");
-      if(!anchor) return;
-      const wrap=document.createElement("div");
-      wrap.className="grid";
-      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:10px 0";
-      labels.forEach(([name,label,type])=>{
-        const box=document.createElement("label");
-        box.className="v4-field";
-        box.innerHTML=`<span>${label}</span><input name="${name}" type="${type}" min="0" value="0">`;
-        wrap.appendChild(box);
-      });
-      anchor.parentElement.insertBefore(wrap, anchor);
-      form.dataset.v4Done="1";
-    });
-  }
-
-  function shareTextFromCard(card){
-    const title=card.querySelector("h1,h2,h3,h4,.title")?.innerText || "تفاصيل الشقة";
-    const text=card.innerText.replace(/\n{3,}/g,"\n").trim();
-    return `🏠 ${title}\n━━━━━━━━━━━━\n${text}`;
-  }
-
-  function addShareButtons(){return;
-    document.querySelectorAll("article,.card,.apartment-card,[data-apartment-id]").forEach(card=>{
-      if(card.dataset.v4ShareDone || card.querySelector(".v4-share")) return;
-      const hasApartment = /شقة|غرفة|إيجار|حمام/.test(card.innerText||"");
-      if(!hasApartment) return;
-      const id=card.dataset.apartmentId || card.getAttribute("data-id");
-      const btn=document.createElement("button");
-      btn.className="v4-share";
-      btn.type="button";
-      btn.textContent="↗ مشاركة";
-      btn.title="مشاركة تفاصيل الشقة والصور والفيديو (للمالك فقط)";
-      btn.onclick=async()=>{
-        try{
-          const text=shareTextFromCard(card);
-          const media=[...card.querySelectorAll("img,video")].map(x=>x.currentSrc||x.src).filter(Boolean);
-          if(navigator.share){
-            const data={title:"تفاصيل الشقة",text};
-            // Browsers generally require actual File objects for media sharing;
-            // use text/link fallback if media cannot be attached.
-            await navigator.share(data);
-          }else{
-            await navigator.clipboard.writeText(text);
-            alert("تم نسخ تفاصيل الشقة. يمكنك لصقها ومشاركتها خارج التطبيق.");
-          }
-        }catch(e){}
-      };
-      const target=card.querySelector(".actions,.card-actions,footer") || card;
-      target.appendChild(btn);
-      card.dataset.v4ShareDone="1";
-    });
-  }
-
-  function addSearchFields(){
-    const forms=[...document.querySelectorAll("form")];
-    forms.forEach(form=>{
-      if(form.dataset.v4SearchDone) return;
-      const txt=(form.innerText||"").toLowerCase();
-      if(!/بحث|فلتر|تصفية|search|filter/.test(txt)) return;
-      const anchor=form.querySelector("button");
-      if(!anchor) return;
-      const wrap=document.createElement("div");
-      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0";
-      labels.forEach(([name,label])=>{
-        const input=document.createElement("input");
-        input.name=name; input.placeholder=label; input.type="number"; input.min="0";
-        input.className="v4-field";
-        wrap.appendChild(input);
-      });
-      anchor.parentElement.insertBefore(wrap,anchor);
-      form.dataset.v4SearchDone="1";
-    });
-  }
-
-  const run=()=>{addFieldsToForms();addSearchFields();addShareButtons()};
-  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
-  document.addEventListener("DOMContentLoaded",run);
-  setTimeout(run,500);
-})();
-</script>
-
-
-<script id="v5-alert-js">
-(function(){
-  const role = (window.currentUser && window.currentUser.role) || document.body.dataset.role || "";
-  function addAlertFieldToApartmentForms(){
-    document.querySelectorAll("form").forEach(form=>{
-      if(form.dataset.v5AlertDone) return;
-      const text=form.innerText||"";
-      if(!/شقة|العقار|apartment/i.test(text)) return;
-      const anchor=form.querySelector("button[type=submit],button");
-      if(!anchor) return;
-      const wrap=document.createElement("div");
-      wrap.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0";
-      wrap.innerHTML=`
-        <label>
-          <span>🔔 تنبيه قرب التوفر</span>
-          <input name="availability_alert_enabled" type="checkbox" value="1">
-        </label>
-        <label>
-          <span>عدد الأيام قبل التوفر</span>
-          <input name="availability_alert_days" class="v5-alert-days" type="number" min="1" max="365" value="7" placeholder="مثال: 10">
-        </label>`;
-      anchor.parentElement.insertBefore(wrap,anchor);
-      form.dataset.v5AlertDone="1";
-    });
-  }
-
-  async function loadAlerts(){
-    if(!['owner','admin'].includes(role)) return;
-    try{
-      const r=await fetch('/api/availability-alerts',{credentials:'include'});
-      if(!r.ok) return;
-      const data=await r.json();
-      const alerts=data.alerts||[];
-      if(!alerts.length) return;
-      let box=document.getElementById('v5-alerts');
-      if(!box){
-        box=document.createElement('section');
-        box.id='v5-alerts';
-        box.className='v5-alert-box';
-        const main=document.querySelector('main')||document.body;
-        main.prepend(box);
-      }
-      box.innerHTML=`🚨 تنبيهات قرب توفر الشقق (${alerts.length})<div style="margin-top:8px">${
-        alerts.map(a=>`<div style="margin:7px 0">🏠 ${a.code||a.apartment_code||a.name||'شقة'} — <span class="v5-alert-badge">${
-          a.days_until_available===0?'متاحة اليوم':`متاحة خلال ${a.days_until_available} يوم`
-        }</span></div>`).join('')
-      }</div>`;
-    }catch(e){}
-  }
-
-  function scanCards(){
-    document.querySelectorAll("article,.card,.apartment-card,[data-apartment-id]").forEach(card=>{
-      if(card.dataset.v5AlertDone) return;
-      const txt=card.innerText||"";
-      const m=txt.match(/متاحة خلال\s+(\d+)\s+يوم|تتوفر بعد\s+(\d+)/);
-      if(m){
-        const b=document.createElement("span");
-        b.className="v5-alert-badge";
-        b.textContent=`🚨 ${m[1]||m[2]} يوم`;
-        card.prepend(b);
-      }
-      card.dataset.v5AlertDone="1";
-    });
-  }
-
-  const run=()=>{addAlertFieldToApartmentForms();scanCards();loadAlerts()};
-  document.addEventListener("DOMContentLoaded",run);
-  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
-  setTimeout(run,1000);
-  setInterval(loadAlerts,60000);
-})();
-</script>
-
-
-<script id="final-release-js">
-(function(){
-  async function loadFinalCounter(){
-    try{
-      const r=await fetch('/api/availability-dashboard',{credentials:'include'});
-      if(!r.ok) return;
-      const d=await r.json();
-      let box=document.getElementById('final-alert-counter');
-      if(!d.count){
-        if(box) box.remove();
-        return;
-      }
-      if(!box){
-        box=document.createElement('div');
-        box.id='final-alert-counter';
-        box.className='final-alert-counter';
-        (document.querySelector('main')||document.body).prepend(box);
-        box.onclick=()=>openFinalAlerts(d.alerts||[]);
-      }
-      box.innerHTML=`<span>🔴 ${d.count} ${d.count===1?'شقة ستصبح متاحة قريبًا':'شقق ستصبح متاحة قريبًا'}</span><small>اضغط لعرض القائمة</small>`;
-    }catch(e){}
-  }
-
-  function openFinalAlerts(alerts){
-    const modal=document.createElement('div');
-    modal.className='final-alert-modal';
-    const panel=document.createElement('div');
-    panel.className='final-alert-panel';
-    panel.innerHTML=`<button class="final-alert-close">إغلاق</button><h2>🚨 الشقق التي ستصبح متاحة قريبًا</h2>`;
-    alerts.forEach(a=>{
-      const row=document.createElement('div');
-      row.className='final-alert-row';
-      row.innerHTML=`<strong>🏠 ${a.name||'شقة'}</strong><br>
-        🔖 الكود: ${a.code||'—'}<br>
-        📅 موعد التوفر: ${a.available_date||'—'}<br>
-        ⏳ ${a.days_until_available===0?'متاحة اليوم':`متاحة خلال ${a.days_until_available} يوم`}`;
-      panel.appendChild(row);
-    });
-    modal.appendChild(panel);
-    document.body.appendChild(modal);
-    panel.querySelector('.final-alert-close').onclick=()=>modal.remove();
-    modal.onclick=e=>{if(e.target===modal) modal.remove()};
-  }
-
-  document.addEventListener('DOMContentLoaded',()=>{
-    loadFinalCounter();
-    setInterval(loadFinalCounter,60000);
-  });
-})();
-</script>
-
-
-<script id="v5-8-final-js">
-function v58Price(v){return Number(v||0).toLocaleString("ar-JO");}
-function v58CanSeePrice(){return me?.role==="owner";}
-function v58Confirm(title,msg="هل تريد المتابعة؟"){
-  return new Promise(resolve=>{
-    const box=document.createElement("div");box.className="v58-confirm";
-    box.innerHTML=`<div class="v58-confirm-box"><h3>${esc(title)}</h3><div class="muted">${esc(msg)}</div><div class="v58-confirm-actions"><button class="btn ghost" id="v58No">إلغاء</button><button class="btn danger" id="v58Yes">تأكيد</button></div></div>`;
-    document.body.appendChild(box);box.querySelector("#v58No").onclick=()=>{box.remove();resolve(false)};box.querySelector("#v58Yes").onclick=()=>{box.remove();resolve(true)};
-  });
+<script id="v5-12-authoritative-final">
+/* v5.12 authoritative final layer: intentionally last so no legacy script can override it. */
+window.v511Min=window.v511Min||''; window.v511Max=window.v511Max||''; window.v59PriceSort='none';
+function v511Price(a,rt){if(rt==='يومي')return Number(a.daily_rent||0);if(rt==='سنوي')return Number(a.annual_rent||0);return Number(a.monthly_rent||a.rent||0)}
+function v511CanPrice(){return me?.role==='owner'}
+function v511ShareFiles(files,title){
+  if(!files.length) return Promise.reject(new Error('لا توجد ملفات للمشاركة'));
+  if(!navigator.share||!navigator.canShare||!navigator.canShare({files})) return Promise.reject(new Error('افتح التطبيق في Chrome على الهاتف، ثم اختر WhatsApp من قائمة المشاركة.'));
+  return navigator.share({title,files});
 }
-function card(a){
-  const photos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');
-  const videos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة');
-  const shown=photos.slice(0,6);
-  const photoGrid=shown.length?`<div class="card-photo-grid">${shown.map((p,i)=>`<div class="card-photo" onclick="event.stopPropagation();openApartmentGallery(${a.id},${i})"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة الشقة ${i+1}">${i===5&&photos.length>6?`<span class="card-photo-more">+${photos.length-6}</span>`:''}</div>`).join('')}</div>`:`<div class="card-photo-empty">📷 لا توجد صور</div>`;
-  const price=v58CanSeePrice()?`<br>💰 ${v58Price(a.rent||a.monthly_rent)} د.أ / ${esc(a.rental_type||"شهري")}`:'';
-  return `<div class="card" data-apartment-id="${a.id}">${photoGrid}<h4>شقة ${esc(a.number)}</h4><div class="meta"><b>${esc(a.area)}</b><br>${a.rooms||0} غرف • ${a.baths||0} حمام • ${a.size_m2||0} م²<br>طابق ${a.floor||0}${price}<br>📷 ${photos.length} صورة ${videos.length?` • 🎥 ${videos.length} فيديو`:''}</div><div class="row">${badge(a.status)}<button class="btn ghost" onclick="editA(${a.id})">التفاصيل</button></div></div>`;
+function v511PriceRange(){
+ const box=document.createElement('div');box.className='wa-picker';
+ box.innerHTML=`<div class="wa-picker-box"><div class="modalhead"><h3>🔎 بحث الشقق حسب السعر</h3><button class="btn ghost" id="rClose">إغلاق</button></div><div class="notice">حدد السعر من وإلى، وسيتم البحث حسب نوع الإيجار المختار.</div><div class="formgrid"><div class="field"><label>من سعر</label><input id="rMin" type="number" min="0" value="${window.v511Min||''}"></div><div class="field"><label>إلى سعر</label><input id="rMax" type="number" min="0" value="${window.v511Max||''}"></div></div><div class="wa-range-actions"><button class="btn ghost" id="rClear">مسح السعر</button><button class="btn primary" id="rApply">تطبيق البحث</button></div></div>`;
+ document.body.appendChild(box);box.querySelector('#rClose').onclick=()=>box.remove();box.onclick=e=>{if(e.target===box)box.remove()};
+ box.querySelector('#rClear').onclick=()=>{window.v511Min='';window.v511Max='';box.remove();drawA()};
+ box.querySelector('#rApply').onclick=()=>{const mn=Number(box.querySelector('#rMin').value||0),mx=Number(box.querySelector('#rMax').value||0);if(mn&&mx&&mn>mx)return alert('من السعر لا يمكن أن يكون أكبر من إلى السعر');window.v511Min=mn||'';window.v511Max=mx||'';box.remove();drawA()};
 }
-function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':''}</div><div class="toolbar v59-search"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><input id="apmin" type="number" min="0" placeholder="أقل سعر" oninput="drawA()"><input id="apmax" type="number" min="0" placeholder="أعلى سعر" oninput="drawA()"><select id="arooms" onchange="drawA()"><option value="">كل الغرف</option><option value="1">1 غرفة</option><option value="2">2 غرف</option><option value="3">3 غرف</option><option value="4">4 غرف</option></select><select id="art" onchange="drawA()"><option value="">كل أنواع الإيجار</option><option>يومي</option><option>شهري</option><option>سنوي</option></select><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join("")}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join("")}</select><button id="priceSortBtn" class="btn primary v59-sort" onclick="togglePriceSort()">↕ السعر: الأقل أولاً</button><button class="btn ghost" onclick="resetApartmentSearch()">مسح البحث</button><button class="btn ghost" onclick="location.href='/api/export/apartments.csv'">تصدير CSV</button></div><div id="alist" class="cards" style="margin-top:16px"></div></div>`}
-function v59SearchPrice(a,rt){if(rt==='يومي')return Number(a.daily_rent||0);if(rt==='سنوي')return Number(a.annual_rent||0);return Number(a.monthly_rent||a.rent||0)}
-function drawA(){let q=($('aq')?.value||'').toLowerCase(),ar=$('af')?.value||'',st=$('as')?.value||'',rt=$('art')?.value||'',min=Number($('apmin')?.value||0),max=Number($('apmax')?.value||0),rooms=Number($('arooms')?.value||0);let x=D.apartments.filter(a=>{let p=v59SearchPrice(a,rt);return (a.number+' '+a.area).toLowerCase().includes(q)&&(!ar||a.area===ar)&&(!st||a.status===st)&&(!rt||a.rental_type===rt)&&(!rooms||Number(a.rooms||0)===rooms)&&(!min||p>=min)&&(!max||p<=max)});if(window.v59PriceSort!=='none')x.sort((a,b)=>{let pa=v59SearchPrice(a,rt),pb=v59SearchPrice(b,rt);return window.v59PriceSort==='desc'?pb-pa:pa-pb});$('alist').innerHTML=x.length?x.map(card).join(''):'<div class="empty">لا توجد نتائج</div>'}
-function togglePriceSort(){window.v59PriceSort=window.v59PriceSort==='asc'?'desc':'asc';let b=$('priceSortBtn');if(b)b.textContent=window.v59PriceSort==='asc'?'↕ السعر: الأقل أولاً':'↕ السعر: الأعلى أولاً';drawA()}
-function resetApartmentSearch(){['aq','apmin','apmax'].forEach(id=>{if($(id))$(id).value=''});['arooms','art','af','as'].forEach(id=>{if($(id))$(id).value=''});window.v59PriceSort='none';let b=$('priceSortBtn');if(b)b.textContent='↕ السعر: الأقل أولاً';drawA()}
-window.v59PriceSort='none';
-function aForm(a={}){let rt=a.rental_type||'شهري';return `<div class="formgrid"><div class="field"><label>كود الشقة</label><input id="acode" value="${esc(a.code||a.number||'')}"></div><div class="field"><label>رقم الشقة</label><input id="an" value="${esc(a.number||'')}"></div><div class="field"><label>المنطقة</label><select id="aa">${D.areas.map(x=>`<option value="${x.id}" ${(x.id===a.area_id||x.name===a.area)?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>الحالة</label><select id="ast">${statuses.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label>نوع الإيجار</label><select id="artype"><option ${rt==='يومي'?'selected':''}>يومي</option><option ${rt==='شهري'?'selected':''}>شهري</option><option ${rt==='سنوي'?'selected':''}>سنوي</option></select></div><div class="field"><label>المساحة (م²)</label><input id="az" type="number" value="${a.size_m2||0}"></div><div class="field"><label>الغرف</label><input id="ro" type="number" value="${a.rooms||0}"></div><div class="field"><label>الحمامات</label><input id="ba" type="number" value="${a.baths||0}"></div><div class="field"><label>الصالات</label><input id="lr" type="number" value="${a.living_rooms||0}"></div><div class="field"><label>الصالونات</label><input id="sal" type="number" value="${a.salons||0}"></div><div class="field"><label>البلكونات</label><input id="bal" type="number" value="${a.balconies||0}"></div><div class="field"><label>الطابق</label><input id="fl" type="number" value="${a.floor||1}"></div>${v58CanSeePrice()?`<div class="full v58-rent-grid"><div class="v58-price"><label>الإيجار اليومي</label><input id="rd" type="number" value="${a.daily_rent||0}"></div><div class="v58-price"><label>الإيجار الشهري</label><input id="rm" type="number" value="${a.monthly_rent||a.rent||0}"></div><div class="v58-price"><label>الإيجار السنوي</label><input id="ry" type="number" value="${a.annual_rent||0}"></div></div>`:`<input id="rd" type="hidden" value="${a.daily_rent||0}"><input id="rm" type="hidden" value="${a.monthly_rent||a.rent||0}"><input id="ry" type="hidden" value="${a.annual_rent||0}">`}<div class="field"><label>موعد التوفر</label><input id="avdate" type="date" value="${esc(a.available_date||'')}"></div><div class="field"><label>التنبيه قبل التوفر بعدد الأيام</label><input id="avdays" type="number" min="0" max="365" value="${a.availability_alert_days||0}"></div><div class="field"><label><input id="aven" type="checkbox" ${a.availability_alert_enabled?'checked':''}> تفعيل تنبيه قرب التوفر</label></div><div class="field full"><label>ملاحظات</label><textarea id="no">${esc(a.notes||'')}</textarea></div></div>`}
+function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':''}</div><div class="toolbar v59-search"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="arooms" onchange="drawA()"><option value="">كل الغرف</option><option value="1">1 غرفة</option><option value="2">2 غرف</option><option value="3">3 غرف</option><option value="4">4 غرف</option></select><select id="art" onchange="drawA()"><option value="">كل أنواع الإيجار</option><option>يومي</option><option>شهري</option><option>سنوي</option></select><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join('')}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join('')}</select><button class="btn primary" onclick="v511PriceRange()">💰 بحث من سعر إلى سعر</button><button class="btn ghost" onclick="resetApartmentSearch()">مسح البحث</button><button class="btn ghost" onclick="location.href='/api/export/apartments.csv'">تصدير CSV</button></div><div id="alist" class="cards" style="margin-top:16px"></div></div>`}
+function drawA(){const q=($('aq')?.value||'').toLowerCase(),ar=$('af')?.value||'',st=$('as')?.value||'',rt=$('art')?.value||'',rooms=Number($('arooms')?.value||0),mn=Number(window.v511Min||0),mx=Number(window.v511Max||0);let x=D.apartments.filter(a=>{const p=v511Price(a,rt);return (a.number+' '+a.area).toLowerCase().includes(q)&&(!ar||a.area===ar)&&(!st||a.status===st)&&(!rt||a.rental_type===rt)&&(!rooms||Number(a.rooms||0)===rooms)&&(!mn||p>=mn)&&(!mx||p<=mx)});$('alist').innerHTML=x.length?x.map(card).join(''):'<div class="empty">لا توجد نتائج</div>'}
+function resetApartmentSearch(){['aq','arooms','art','af','as'].forEach(id=>{if($(id))$(id).value=''});window.v511Min='';window.v511Max='';drawA()}
+function card(a){const photos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة'),videos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة'),shown=photos.slice(0,6);const photoGrid=shown.length?`<div class="card-photo-grid">${shown.map((p,i)=>`<div class="card-photo" onclick="event.stopPropagation();openApartmentGallery(${a.id},${i})"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة الشقة ${i+1}">${i===5&&photos.length>6?`<span class="card-photo-more">+${photos.length-6}</span>`:''}</div>`).join('')}</div>`:`<div class="card-photo-empty">📷 لا توجد صور</div>`;const price=v511CanPrice()?`<br>💰 ${Number(v511Price(a,a.rental_type||'شهري')).toLocaleString()} د.أ / ${esc(a.rental_type||'شهري')}`:'';return `<div class="card" data-apartment-id="${a.id}">${photoGrid}<h4>شقة ${esc(a.number)}</h4><div class="meta"><b>${esc(a.area)}</b><br>${a.rooms||0} غرف • ${a.baths||0} حمام • ${a.size_m2||0} م²<br>طابق ${a.floor||0}${price}<br>📷 ${photos.length} صورة ${videos.length?` • 🎥 ${videos.length} فيديو`:''}</div><div class="row">${badge(a.status)}<button class="btn ghost" onclick="editA(${a.id})">التفاصيل</button></div></div>`}
+function aForm(a={}){const rt=a.rental_type||'شهري';return `<div class="formgrid"><div class="field"><label>كود الشقة</label><input id="acode" value="${esc(a.code||a.number||'')}"></div><div class="field"><label>رقم الشقة</label><input id="an" value="${esc(a.number||'')}"></div><div class="field"><label>المنطقة</label><select id="aa">${D.areas.map(x=>`<option value="${x.id}" ${(x.id===a.area_id||x.name===a.area)?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>الحالة</label><select id="ast">${statuses.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label>نوع الإيجار</label><select id="artype"><option ${rt==='يومي'?'selected':''}>يومي</option><option ${rt==='شهري'?'selected':''}>شهري</option><option ${rt==='سنوي'?'selected':''}>سنوي</option></select></div><div class="field"><label>المساحة (م²)</label><input id="az" type="number" value="${a.size_m2||0}"></div><div class="field"><label>الغرف</label><input id="ro" type="number" value="${a.rooms||0}"></div><div class="field"><label>الحمامات</label><input id="ba" type="number" value="${a.baths||0}"></div><div class="field"><label>الصالات</label><input id="lr" type="number" value="${a.living_rooms||0}"></div><div class="field"><label>الصالونات</label><input id="sal" type="number" value="${a.salons||0}"></div><div class="field"><label>البلكونات</label><input id="bal" type="number" value="${a.balconies||0}"></div><div class="field"><label>الطابق</label><input id="fl" type="number" value="${a.floor||1}"></div>${v511CanPrice()?`<div class="full v58-rent-grid"><div class="v58-price"><label>الإيجار اليومي</label><input id="rd" type="number" value="${a.daily_rent||0}"></div><div class="v58-price"><label>الإيجار الشهري</label><input id="rm" type="number" value="${a.monthly_rent||a.rent||0}"></div><div class="v58-price"><label>الإيجار السنوي</label><input id="ry" type="number" value="${a.annual_rent||0}"></div></div>`:`<input id="rd" type="hidden" value="${a.daily_rent||0}"><input id="rm" type="hidden" value="${a.monthly_rent||a.rent||0}"><input id="ry" type="hidden" value="${a.annual_rent||0}">`}<div class="field"><label>موعد التوفر</label><input id="avdate" type="date" value="${esc(a.available_date||'')}"></div><div class="field"><label>التنبيه قبل التوفر بعدد الأيام</label><input id="avdays" type="number" min="0" max="365" value="${a.availability_alert_days||0}"></div><div class="field"><label><input id="aven" type="checkbox" ${a.availability_alert_enabled?'checked':''}> تفعيل تنبيه قرب التوفر</label></div><div class="field full"><label>ملاحظات</label><textarea id="no">${esc(a.notes||'')}</textarea></div></div>`}
 function addA(){modal(`<div class="modalhead"><h3>إضافة شقة جديدة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm()}<button class="btn primary" style="margin-top:14px" onclick="saveA()">حفظ الشقة</button>`)}
-function editA(id){let a=D.apartments.find(x=>x.id===id);let photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='فيديو شقة');modal(`<div class="modalhead"><h3>تفاصيل الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>${aForm(a)}${me.role==='owner'?`<div class="v55-share-row"><button class="v55-share-btn v58-share-image" onclick="shareApartmentDetails(${id})">📝 مشاركة التفاصيل كصورة</button></div>`:''}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة</span></div>${me.role==='owner'&&photos.length?`<button class="v55-share-btn v55-share-photos" onclick="shareApartmentPhotos(${id})">🖼 مشاركة الصور كصور</button>`:''}${me.role!=='user'?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:''}<div id="photos_${id}" class="photos">${photos.length?photos.map((p,i)=>photoHtml(p,i)).join(''):'<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>🎥 فيديو الشقة</h3><span class="muted">${videos.length} فيديو</span></div>${me.role!=='user'?`<label class="btn ghost" style="display:inline-flex;align-items:center;gap:6px">🎥 تحميل فيديو الشقة<input id="apVideo" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onchange="uploadApartmentVideo(${id})" style="display:none"></label>`:''}${videos.length?videos.map(videoHtml).join(''):'<div class="photoempty">لا يوجد فيديو لهذه الشقة</div>'}</div><div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" onclick="saveA(${id})">حفظ التعديل</button>${me.role==='owner'?`<button class="btn danger" onclick="delA(${id})">حذف الشقة</button>`:''}</div>`)}
-async function saveA(id){if(id&&!(await v58Confirm('تأكيد تعديل الشقة','سيتم حفظ جميع التعديلات على بيانات الشقة.')))return;try{let monthly=+($('rm')?.value||0);let b={number:an.value,code:acode.value||an.value,area_id:+aa.value,status:ast.value,rent:monthly,size_m2:+az.value,rooms:+ro.value,baths:+ba.value,kitchen:1,floor:+fl.value,notes:no.value,rental_type:artype.value,daily_rent:+rd.value,monthly_rent:monthly,annual_rent:+ry.value,available_date:avdate.value||null,living_rooms:+lr.value,salons:+sal.value,balconies:+bal.value,availability_alert_days:+avdays.value||0,availability_alert_enabled:aven.checked};await api(id?'/api/apartments/'+id:'/api/apartments',{method:id?'PUT':'POST',body:JSON.stringify(b)});closeM();await load();notify('تم حفظ البيانات بنجاح');}catch(e){alert(e.message)}}
-async function delA(id){if(!(await v58Confirm('تأكيد حذف الشقة','لا يمكن التراجع عن حذف الشقة وبياناتها.')))return;try{await api('/api/apartments/'+id,{method:'DELETE'});closeM();await load();notify('تم حذف الشقة');}catch(e){alert(e.message)}}
-async function deletePhoto(id){if(!(await v58Confirm('تأكيد حذف الصورة','سيتم حذف الصورة نهائياً.')))return;try{let d=D.documents.find(x=>x.id===id);await api('/api/documents/'+id,{method:'DELETE'});await load();if(d)editA(d.apartment_id);notify('تم حذف الصورة');}catch(e){alert(e.message)}}
-async function deleteVideo(id,apartmentId){if(!(await v58Confirm('تأكيد حذف الفيديو','سيتم حذف الفيديو نهائياً.')))return;try{await api('/api/documents/'+id,{method:'DELETE'});await load();editA(apartmentId);notify('تم حذف الفيديو');}catch(e){alert(e.message)}}
-async function shareApartmentDetails(id){try{if(me?.role!=='owner')return alert('المشاركة متاحة للمالك فقط');let a=D.apartments.find(x=>x.id===id);if(!a)throw Error('الشقة غير موجودة');let canvas=document.createElement('canvas'),w=1200,p=65;let rows=[['شقة',a.number],['المنطقة',a.area||'—'],['الغرف',a.rooms||0],['الحمامات',a.baths||0],['المساحة',`${a.size_m2||0} م²`],['الطابق',a.floor||0],['نوع الإيجار',a.rental_type||'شهري'],['اليومي',`${v58Price(a.daily_rent)} د.أ`],['الشهري',`${v58Price(a.monthly_rent||a.rent)} د.أ`],['السنوي',`${v58Price(a.annual_rent)} د.أ`],['الحالة',a.status||'—']];let h=180+rows.length*78;canvas.width=w;canvas.height=h;let c=canvas.getContext('2d');c.fillStyle='#f8f2e7';c.fillRect(0,0,w,h);c.fillStyle='#20142b';c.roundRect(35,35,w-70,110,28);c.fill();c.fillStyle='#f1d486';c.font='900 46px Tahoma';c.textAlign='right';c.fillText(`شقة ${a.number}`,w-75,105);c.fillStyle='#fffdf8';c.font='700 24px Tahoma';c.fillText(a.area||'',w-75,140);let y=205;for(const [k,v] of rows.slice(2)){c.fillStyle='#fffdf9';c.roundRect(45,y-45,w-90,62,16);c.fill();c.fillStyle='#6d6670';c.font='600 24px Tahoma';c.textAlign='right';c.fillText(k,w-75,y-7);c.fillStyle='#201b24';c.font='800 25px Tahoma';c.fillText(String(v),75,y-7);y+=78}let blob=await new Promise(r=>canvas.toBlob(r,'image/png'));let file=new File([blob],`شقة-${a.number}-تفاصيل.png`,{type:'image/png'});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:`تفاصيل شقة ${a.number}`,files:[file]});}else{throw Error('هذا المتصفح لا يدعم مشاركة الصورة مباشرة. افتح التطبيق من Chrome على الهاتف.')}}catch(e){if(e?.name==='AbortError')return;alert(e.message||'تعذر مشاركة الصورة')}}
-function notify(msg){let n=document.createElement('div');n.style='position:fixed;bottom:20px;right:20px;z-index:5000;background:#20142b;color:#fff;padding:13px 17px;border-radius:13px;box-shadow:0 8px 25px #0004;font-weight:800';n.textContent=msg;document.body.appendChild(n);setTimeout(()=>n.remove(),2600)}
-async function clearLogs(){if(me.role!=='owner')return;if(!(await v58Confirm('تأكيد مسح السجل','سيتم حذف سجل العمليات بالكامل.')))return;try{await api('/api/logs',{method:'DELETE'});await load();notify('تم مسح السجل');}catch(e){alert(e.message)}}
+function editA(id){const a=D.apartments.find(x=>x.id===id),photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة'),videos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='فيديو شقة');modal(`<div class="modalhead"><h3>تفاصيل الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">✕ إغلاق</button></div>${aForm(a)}${me.role==='owner'?`<div class="v55-share-row"><button class="btn wa-btn" onclick="shareApartmentDetails(${id})">🟢 WhatsApp — التفاصيل</button></div>`:''}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة</span></div>${me.role==='owner'&&photos.length?`<button class="btn wa-btn" onclick="shareApartmentPhotos(${id})">🟢 WhatsApp — الصور</button>`:''}${me.role!=='user'?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:''}<div id="photos_${id}" class="photos">${photos.length?photos.map((p,i)=>photoHtml(p,i)).join(''):'<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>🎥 فيديو الشقة</h3><span class="muted">${videos.length} فيديو</span></div>${me.role!=='user'?`<label class="btn ghost">🎥 تحميل فيديو الشقة<input id="apVideo" type="file" accept="video/mp4,video/webm,video/quicktime,video/x-m4v" onchange="uploadApartmentVideo(${id})" style="display:none"></label>`:''}${videos.length?videos.map(videoHtml).join(''):'<div class="photoempty">لا يوجد فيديو لهذه الشقة</div>'}</div><div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" onclick="saveA(${id})">حفظ التعديل</button>${me.role==='owner'?`<button class="btn danger" onclick="delA(${id})">حذف الشقة</button>`:''}</div>`)}
+async function saveA(id){if(id&&!(await v58Confirm('تأكيد تعديل الشقة','سيتم حفظ التعديلات.')))return;try{const monthly=+($('rm')?.value||0),b={number:an.value,code:acode.value||an.value,area_id:+aa.value,status:ast.value,rent:monthly,size_m2:+az.value,rooms:+ro.value,baths:+ba.value,kitchen:1,floor:+fl.value,notes:no.value,rental_type:artype.value,daily_rent:+rd.value,monthly_rent:monthly,annual_rent:+ry.value,available_date:avdate.value||null,living_rooms:+lr.value,salons:+sal.value,balconies:+bal.value,availability_alert_days:+avdays.value||0,availability_alert_enabled:aven.checked};await api(id?'/api/apartments/'+id:'/api/apartments',{method:id?'PUT':'POST',body:JSON.stringify(b)});closeM();await load();notify('تم حفظ البيانات بنجاح')}catch(e){alert(e.message)}}
+async function delA(id){if(!(await v58Confirm('تأكيد حذف الشقة','لا يمكن التراجع عن الحذف.')))return;try{await api('/api/apartments/'+id,{method:'DELETE'});closeM();await load();notify('تم حذف الشقة')}catch(e){alert(e.message)}}
+async function deletePhoto(id){if(!(await v58Confirm('تأكيد حذف الصورة','سيتم حذف الصورة نهائياً.')))return;try{const d=D.documents.find(x=>x.id===id);await api('/api/documents/'+id,{method:'DELETE'});await load();if(d)editA(d.apartment_id);notify('تم حذف الصورة')}catch(e){alert(e.message)}}
+async function deleteVideo(id,apartmentId){if(!(await v58Confirm('تأكيد حذف الفيديو','سيتم حذف الفيديو نهائياً.')))return;try{await api('/api/documents/'+id,{method:'DELETE'});await load();editA(apartmentId);notify('تم حذف الفيديو')}catch(e){alert(e.message)}}
+async function shareApartmentDetails(id){if(me?.role!=='owner')return alert('المشاركة متاحة للمالك فقط');const a=D.apartments.find(x=>x.id===id);if(!a)return;const rows=[['الكود',a.code||a.number||'—'],['رقم الشقة',a.number||'—'],['المنطقة',a.area||'—'],['الحالة',a.status||'—'],['الغرف',a.rooms||0],['الحمامات',a.baths||0],['الصالات',a.living_rooms||0],['الصالونات',a.salons||0],['البلكونات',a.balconies||0],['المساحة',`${a.size_m2||0} م²`],['الطابق',a.floor||0],['نوع الإيجار',a.rental_type||'—'],['الإيجار اليومي',`${v58Price(a.daily_rent)} د.أ`],['الإيجار الشهري',`${v58Price(a.monthly_rent||a.rent)} د.أ`],['الإيجار السنوي',`${v58Price(a.annual_rent)} د.أ`],['موعد التوفر',a.available_date||'غير محدد'],['التنبيه قبل التوفر',`${a.availability_alert_days||0} يوم`],['الملاحظات',a.notes||'—']];const w=1200,rowH=68,h=170+rows.length*rowH,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const c=canvas.getContext('2d');c.fillStyle='#f7f0e4';c.fillRect(0,0,w,h);c.fillStyle='#251432';c.roundRect(35,30,w-70,105,24);c.fill();c.fillStyle='#f1d486';c.font='900 44px Tahoma';c.textAlign='right';c.direction='rtl';c.fillText(`تفاصيل الشقة — ${a.number||''}`,w-70,88);c.font='700 23px Tahoma';c.fillText(a.area||'',w-70,120);let y=180;rows.forEach(([k,v],i)=>{c.fillStyle=i%2?'#fffaf2':'#f1e8d9';c.roundRect(45,y-34,w-90,54,13);c.fill();c.fillStyle='#756b75';c.font='700 21px Tahoma';c.textAlign='right';c.fillText(k,w-80,y);c.fillStyle='#241c27';c.font='800 22px Tahoma';c.textAlign='left';c.fillText(String(v),80,y);y+=rowH});const blob=await new Promise(r=>canvas.toBlob(r,'image/png',1));if(!blob)throw Error('تعذر إنشاء صورة التفاصيل');await v511ShareFiles([new File([blob],`تفاصيل-الشقة-${a.number||id}.png`,{type:'image/png'})],`تفاصيل شقة ${a.number||''}`).catch(e=>{throw e})}
+async function shareApartmentPhotos(id){if(me?.role!=='owner')return alert('المشاركة متاحة للمالك فقط');const photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');if(!photos.length)return alert('لا توجد صور لهذه الشقة');const box=document.createElement('div');box.className='wa-picker';box.innerHTML=`<div class="wa-picker-box"><div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="pc">✕ إغلاق</button></div><div class="notice">حدد الصور التي تريد إرسالها كصور عادية.</div><div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}"></label>`).join('')}</div><div class="wa-range-actions"><button class="btn ghost" id="pa">تحديد الكل</button><button class="btn wa-btn" id="ps">🟢 WhatsApp — إرسال</button></div></div>`;document.body.appendChild(box);box.querySelector('#pc').onclick=()=>box.remove();box.querySelector('#pa').onclick=()=>box.querySelectorAll('input').forEach(cb=>{cb.checked=true;cb.closest('.wa-photo-item').classList.add('selected')});box.querySelector('#ps').onclick=async()=>{try{const chosen=[...box.querySelectorAll('input:checked')].map(cb=>photos[+cb.dataset.i]),files=[];for(const d of chosen){const r=await fetch('/uploads/'+encodeURIComponent(d.filename));if(r.ok){const b=await r.blob();files.push(new File([b],d.original_name||d.filename,{type:b.type||'image/jpeg'}))}}if(!files.length)return alert('حدد صورة واحدة على الأقل');await v511ShareFiles(files,'صور الشقة');box.remove()}catch(e){if(e.name!=='AbortError')alert(e.message)}}}
+async function shareApartmentVideo(id){if(me?.role!=='owner')return alert('المشاركة متاحة للمالك فقط');const a=D.apartments.find(x=>x.id===id),d=D.documents.find(x=>x.apartment_id===id&&x.kind==='فيديو شقة');if(!a||!d)return alert('لا يوجد فيديو لهذه الشقة');try{const r=await fetch('/uploads/'+encodeURIComponent(d.filename));if(!r.ok)throw Error('تعذر تجهيز الفيديو');const b=await r.blob();await v511ShareFiles([new File([b],d.original_name||`فيديو-شقة-${a.number}.mp4`,{type:b.type||'video/mp4'})],`فيديو شقة ${a.number}`)}catch(e){if(e.name!=='AbortError')alert(e.message)}}
+function videoHtml(d){return `<div class="video-wrap v55-video-card" onclick="openMiniVideo(${d.apartment_id})"><div class="v55-video-play-label">▶ تشغيل داخل التطبيق</div><video class="v55-video-thumb" muted playsinline preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row" onclick="event.stopPropagation()"><span class="muted">🎥 ${esc(d.original_name)}</span><div class="v510-video-actions"><button class="btn ghost" onclick="openMiniVideo(${d.apartment_id})">▶ تشغيل</button>${me.role==='owner'?`<button class="btn wa-btn" onclick="shareApartmentVideo(${d.apartment_id})">🟢 WhatsApp — الفيديو</button><button class="btn ghost" onclick="downloadApartmentVideo(${d.id})">⬇ تحميل</button>`:''}${me.role!=='user'?`<button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button>`:''}</div></div></div>`}
+async function downloadApartmentVideo(id){try{const d=D.documents.find(x=>x.id===id);if(!d)return;const r=await fetch('/uploads/'+encodeURIComponent(d.filename));if(!r.ok)throw Error('تعذر تحميل الفيديو');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=d.original_name||`فيديو-${id}.mp4`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1200)}catch(e){alert(e.message)}}
+function tenants(){return `<div class="panel"><div class="head"><h3>المستأجرون والعقود</h3>${me.role!=="user"?'<button class="btn primary" onclick="addT()">＋ إضافة مستأجر</button>':''}</div><table><thead><tr><th>المستأجر</th><th>الشقة</th><th>الهاتف</th><th>الإيجار</th><th>العقد</th><th>التجديد</th><th>الهوية/الجواز</th></tr></thead><tbody>${D.tenants.map(t=>{const doc=D.documents.find(d=>d.tenant_id===t.id&&d.kind==='هوية/جواز');return `<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.apartment||'—')}</td><td>${esc(t.phone)}</td><td>${Number(t.monthly_rent||0).toLocaleString()}</td><td>${esc(t.contract_start||'—')} → ${esc(t.contract_end||'—')}</td><td>${me.role!=='user'?`<button class="renew-toggle" onclick="toggleRenewal(${t.id},${t.renewal_enabled?1:0})"><span class="renew-dot ${t.renewal_enabled?'on':'off'}"></span>${t.renewal_enabled?'تجديد مفعّل':'التجديد متوقف'}</button>`:`<span class="renew-dot ${t.renewal_enabled?'on':'off'}"></span>`}</td><td>${doc?`<button class="btn ghost" onclick="window.open('/uploads/${encodeURIComponent(doc.filename)}','_blank')">عرض</button>`:'—'}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">لا يوجد مستأجرون</td></tr>'}</tbody></table></div>`}
+function addT(){modal(`<div class="modalhead"><h3>إضافة مستأجر وعقد</h3><button class="btn ghost" onclick="closeM()">✕ إغلاق</button></div><div class="formgrid"><div class="field"><label>الاسم</label><input id="tn"></div><div class="field"><label>الهاتف</label><input id="tp"></div><div class="field"><label>رقم الهوية</label><input id="tid"></div><div class="field"><label>الشقة</label><select id="ta"><option value="">بدون</option>${D.apartments.map(a=>`<option value="${a.id}">${a.number} — ${a.area}</option>`).join('')}</select></div><div class="field"><label>بداية العقد</label><input id="cs" type="date"></div><div class="field"><label>نهاية العقد</label><input id="ce" type="date"></div><div class="field"><label>الإيجار الشهري</label><input id="tr" type="number"></div><div class="field"><label>التأمين</label><input id="dep" type="number"></div><div class="field full"><label>صورة الهوية أو جواز السفر</label><input id="tidfile" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></div><div class="field full"><label>التجديد</label><button type="button" class="renew-toggle" id="newRenew" onclick="this.dataset.on=this.dataset.on==='0'?'1':'0';this.innerHTML=this.dataset.on==='1'?'<span class=\"renew-dot on\"></span> التجديد مفعّل':'<span class=\"renew-dot off\"></span> التجديد متوقف'" data-on="1"><span class="renew-dot on"></span> التجديد مفعّل</button></div><div class="field full"><label>ملاحظات</label><textarea id="tnote"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveT()">حفظ المستأجر</button>`)}
+async function saveT(){try{const renew=$('newRenew')?.dataset.on!=='0';const r=await api('/api/tenants',{method:'POST',body:JSON.stringify({name:tn.value,phone:tp.value,national_id:tid.value,apartment_id:ta.value?+ta.value:null,contract_start:cs.value,contract_end:ce.value,monthly_rent:+tr.value,deposit:+dep.value,status:'نشط',notes:tnote.value,renewal_enabled:renew})});const f=$('tidfile')?.files?.[0];if(f){const fd=new FormData();fd.append('file',f);fd.append('tenant_id',r.id);fd.append('kind','هوية/جواز');const rr=await fetch('/api/documents',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd});const jj=await rr.json();if(!rr.ok)throw Error(jj.error||'تعذر رفع الهوية/الجواز')}closeM();await load();notify('تم حفظ المستأجر')}catch(e){alert(e.message)}}
+async function toggleRenewal(id,current){if(!(await v58Confirm(current?'إيقاف التجديد؟':'تفعيل التجديد؟')))return;try{const t=D.tenants.find(x=>x.id===id);if(!t)return;await api('/api/tenants/'+id,{method:'PUT',body:JSON.stringify({name:t.name,apartment_id:t.apartment_id,phone:t.phone,national_id:t.national_id,status:t.status,contract_start:t.contract_start,contract_end:t.contract_end,monthly_rent:t.monthly_rent,deposit:t.deposit,notes:t.notes,renewal_enabled:!current})});await load();notify(!current?'تم تفعيل التجديد':'تم إيقاف التجديد')}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3>${me.role==='owner'?'<button class="btn danger" onclick="clearLogs()">🗑 مسح السجل</button>':''}</div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join('')||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
-</script>
-
-<script id="v5-10-final-js">
-function videoHtml(d){return `<div class="video-wrap v55-video-card" onclick="openMiniVideo(${d.apartment_id})"><div class="v55-video-play-label">▶ تشغيل داخل التطبيق</div><video class="v55-video-thumb" muted playsinline preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row" onclick="event.stopPropagation()"><span class="muted">🎥 ${esc(d.original_name)}</span><div class="v510-video-actions"><button class="btn ghost" onclick="openMiniVideo(${d.apartment_id})">▶ تشغيل</button>${me.role==="owner"?`<button class="btn v510-video-share" onclick="shareApartmentVideo(${d.apartment_id})">🎥 مشاركة الفيديو</button><button class="btn v510-video-download" onclick="downloadApartmentVideo(${d.id})">⬇ تحميل</button>`:""}${me.role!=="user"?`<button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button>`:""}</div></div></div>`}
-async function downloadApartmentVideo(id){try{const d=D.documents.find(x=>x.id===id);if(!d)return;const r=await fetch('/uploads/'+encodeURIComponent(d.filename));if(!r.ok)throw Error('تعذر تحميل الفيديو');const blob=await r.blob();const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=d.original_name||('فيديو-'+id+'.mp4');document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}catch(e){alert(e.message||'تعذر تحميل الفيديو')}}
-</script>
-
-<script id="v5-10-share-override">
-async function shareApartmentVideo(id){
-  try{
-    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
-    const a=D.apartments.find(x=>x.id===id);
-    const d=D.documents.find(x=>x.apartment_id===id&&x.kind==="فيديو شقة");
-    if(!a||!d){alert("لا يوجد فيديو لهذه الشقة");return;}
-    const r=await fetch("/uploads/"+encodeURIComponent(d.filename),{credentials:"same-origin"});
-    if(!r.ok)throw Error("تعذر تجهيز الفيديو للمشاركة");
-    const blob=await r.blob();
-    const ext=(d.filename||"").toLowerCase().split(".").pop();
-    const type=blob.type||({webm:"video/webm",m4v:"video/mp4",mov:"video/quicktime",mp4:"video/mp4"}[ext]||"video/mp4");
-    const file=new File([blob],d.original_name||(`فيديو-شقة-${a.number}.mp4`),{type});
-    if(!navigator.share||!navigator.canShare||!navigator.canShare({files:[file]})){
-      alert("هذا المتصفح لا يدعم إرسال الفيديو مباشرة من داخل التطبيق. افتح التطبيق في Chrome على الهاتف ثم اضغط مشاركة الفيديو.");
-      return;
-    }
-    await navigator.share({title:`فيديو شقة ${a.number}`,files:[file]});
-  }catch(e){if(e?.name==="AbortError")return;alert(e.message||"تعذر مشاركة الفيديو");}
-}
+async function clearLogs(){if(me.role!=='owner')return;if(!(await v58Confirm('تأكيد مسح السجل','سيتم حذف سجل العمليات بالكامل.')))return;try{await api('/api/logs',{method:'DELETE'});await load();notify('تم مسح السجل')}catch(e){alert(e.message)}}
 </script>
 </body>
 </html>
