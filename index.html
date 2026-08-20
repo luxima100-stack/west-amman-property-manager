@@ -292,36 +292,92 @@ async function saveT(){try{const enabled=$('renewToggle')?.dataset.enabled!=='0'
 }
 </style>
 
-<style id="v529-typography">
+
+<style id="v530-final-style">
+/* v5.30: clear light-gold buttons + larger, darker typography */
 :root{
-  --v529-text:#111111;
-  --v529-heading:#050505;
+  --v530-gold:#e8cf86;
+  --v530-gold-hover:#dabb67;
+  --v530-text:#050505;
+  --v530-heading:#000000;
 }
+
+/* Make all application text darker and substantially larger */
 body, body *{
-  color:var(--v529-text);
+  color:var(--v530-text);
 }
 body{
-  font-size:18px !important;
+  font-size:20px !important;
+  line-height:1.65 !important;
 }
-input, select, textarea, button{
-  font-size:18px !important;
-  color:var(--v529-text) !important;
+p, span, div, label, small, .muted, .notice, .field, .row,
+.card, .details, .modalbox, .modalhead, .wa-photo-item{
+  font-size:20px !important;
+  line-height:1.6 !important;
 }
-label, .label, .muted, .notice, .field, .row, .card, .details, .modalbox{
-  font-size:18px !important;
+input, select, textarea{
+  font-size:20px !important;
+  line-height:1.5 !important;
+  color:#000 !important;
+  font-weight:500 !important;
 }
-h1{font-size:28px !important;color:var(--v529-heading)!important;font-weight:800!important;}
-h2{font-size:25px !important;color:var(--v529-heading)!important;font-weight:800!important;}
-h3{font-size:22px !important;color:var(--v529-heading)!important;font-weight:800!important;}
-h4{font-size:20px !important;color:var(--v529-heading)!important;font-weight:800!important;}
-button,.btn{font-weight:700!important;}
+button, .btn, a.btn{
+  font-size:20px !important;
+  line-height:1.35 !important;
+  font-weight:800 !important;
+  background:var(--v530-gold) !important;
+  color:#000 !important;
+  border-color:#b8953f !important;
+}
+button:hover, .btn:hover, a.btn:hover{
+  background:var(--v530-gold-hover) !important;
+  color:#000 !important;
+}
+h1{
+  font-size:32px !important;
+  line-height:1.35 !important;
+  color:#000 !important;
+  font-weight:900 !important;
+}
+h2{
+  font-size:29px !important;
+  line-height:1.4 !important;
+  color:#000 !important;
+  font-weight:900 !important;
+}
+h3{
+  font-size:26px !important;
+  line-height:1.4 !important;
+  color:#000 !important;
+  font-weight:900 !important;
+}
+h4{
+  font-size:23px !important;
+  line-height:1.45 !important;
+  color:#000 !important;
+  font-weight:900 !important;
+}
+
+/* Preserve obvious status colors where they communicate state */
+.status, .badge, .alert, .danger, .success, .warning,
+[style*="background:#e74c3c"], [style*="background: #e74c3c"]{
+  /* status components may keep their semantic background */
+}
+
+/* Phone */
 @media (max-width:700px){
-  body{font-size:18px !important;}
-  input,select,textarea,button,.btn{font-size:18px !important;}
-  h1{font-size:28px !important;}
-  h2{font-size:25px !important;}
-  h3{font-size:22px !important;}
-  h4{font-size:20px !important;}
+  body{font-size:20px !important;line-height:1.65 !important;}
+  p, span, div, label, small, .muted, .notice, .field, .row,
+  .card, .details, .modalbox, .modalhead, .wa-photo-item{
+    font-size:20px !important;
+  }
+  input, select, textarea, button, .btn, a.btn{
+    font-size:20px !important;
+  }
+  h1{font-size:32px !important;}
+  h2{font-size:29px !important;}
+  h3{font-size:26px !important;}
+  h4{font-size:23px !important;}
 }
 </style>
 
