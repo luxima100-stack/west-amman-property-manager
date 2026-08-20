@@ -544,6 +544,22 @@ button[onclick*="deletePhoto"], button[onclick*="deleteDocument"]{
 }
 </style>
 
+
+<style id="v536-security-style">
+.v536-security{max-width:1100px;margin:auto}
+.v536-sec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:16px}
+.v536-sec-card{background:linear-gradient(180deg,#fffdf8,#faf3df);border:1px solid #e4d6ac;border-radius:15px;padding:18px;box-shadow:0 3px 10px rgba(92,70,25,.08)}
+.v536-sec-card h4{font-size:21px!important;color:#17130b!important;margin:0 0 8px}
+.v536-sec-card p{font-size:17px!important;color:#4b4538!important}
+.v536-sec-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.v536-soft{
+ background:linear-gradient(180deg,#fbefbd,#e7cf88,#d8b964)!important;
+ color:#30250d!important;border:1px solid #c9aa5e!important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 2px 5px rgba(90,67,20,.10)!important;
+ border-radius:9px!important;font-size:17px!important;font-weight:700!important;
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
@@ -951,7 +967,7 @@ function modal(x){
 }
 function closeM(){$("modal").classList.remove("show");document.body.style.overflow=""}
 function logout(){localStorage.clear();token=null;me=null;login()}
-function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
+function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="security")$("root").innerHTML+=securityBackupPage();if(page==="users")setTimeout(loadUsersProfiles,60)}
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 load();
 </script>
@@ -1211,6 +1227,34 @@ async function shareApartmentPhotos(id){
   else wirePasswords();
   new MutationObserver(wirePasswords).observe(document.documentElement,{subtree:true,childList:true});
 })();
+
+
+function securityBackupPage(){
+  return `<div class="panel v536-security">
+    <div class="head"><h3>🔐 النسخ الاحتياطي والحماية</h3><button class="btn ghost" onclick="go('home')">↩ الرئيسية</button></div>
+    <div class="notice">هذه الصفحة مخصصة للمالك لإدارة النسخ الاحتياطية وحماية بيانات النظام.</div>
+    <div class="v536-sec-grid">
+      <div class="v536-sec-card"><h4>💾 النسخ الاحتياطي</h4><p>حفظ نسخة من بيانات النظام والصور قبل التحديثات أو التغييرات الكبيرة.</p>
+        <div class="v536-sec-actions">
+          ${me?.role==='owner'?'<button class="btn v536-soft" onclick="backupNow()">💾 إنشاء نسخة احتياطية</button>':''}
+          ${me?.role==='owner'?'<button class="btn v536-soft" onclick="restoreBackup()">♻️ استعادة نسخة</button>':''}
+        </div>
+      </div>
+      <div class="v536-sec-card"><h4>🛡️ الحماية</h4><p>إدارة كلمات المرور والصلاحيات والوصول إلى النظام.</p>
+        <div class="v536-sec-actions">
+          ${me?.role==='owner'?'<button class="btn v536-soft" onclick="go(\'users\')">👥 المستخدمون والصلاحيات</button>':''}
+          <button class="btn v536-soft" onclick="changePassword()">🔐 تغيير كلمة المرور</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+function homeAccessControl(){
+  if(me?.role==="owner") return true;
+  return !!(me?.permissions||[]).includes("home");
+}
 
 </script>
 <style id="v5-17-backup-css">

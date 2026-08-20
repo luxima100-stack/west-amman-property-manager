@@ -296,7 +296,7 @@ app.post("/api/login",(req,res)=>{
  const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(username);
  if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
- res.json({token,user:{username:u.username,role:u.role}});
+ const permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission); res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
 });
 
 app.post("/api/change-password",auth,(req,res)=>{
@@ -326,7 +326,7 @@ app.get("/api/bootstrap",auth,(req,res)=>{
 });
 
 
-const ADMIN_PERMISSIONS=["apartments","tenants","finance","chat","logs"];
+const ADMIN_PERMISSIONS=["home","apartments","tenants","finance","chat","logs"];
 function hasPerm(user,perm){
   if(user?.role==="owner") return true;
   if(user?.role!=="admin") return false;
@@ -382,7 +382,7 @@ app.get("/api/users/:id/permissions",auth,(req,res)=>{
 app.put("/api/users/:id/permissions",auth,(req,res)=>{
  if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
  const id=Number(req.params.id), {permission,enabled}=req.body||{};
- const allowed=["apartments","tenants","finance","chat","logs","view_apartments","view_tenants","view_finance","view_chat","view_logs"];
+ const allowed=["home","apartments","tenants","finance","chat","logs","view_apartments","view_tenants","view_finance","view_chat","view_logs"];
  if(!allowed.includes(permission)) return res.status(400).json({error:"صلاحية غير معروفة"});
  const user=db.prepare("SELECT id,role FROM users WHERE id=?").get(id);
  if(!user || user.role==="owner") return res.status(404).json({error:"لا يمكن تعديل صلاحيات هذا المستخدم"});
