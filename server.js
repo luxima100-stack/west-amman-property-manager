@@ -321,11 +321,65 @@ for (const [field,type] of [
   ['commission','REAL DEFAULT 0'],['commission_type',"TEXT DEFAULT 'ثابت'"]
 ]) { try { db.prepare(`ALTER TABLE tenants ADD COLUMN ${field} ${type}`).run(); } catch {} }
 
+// v5.45 demo apartments seed — adds 12 clearly marked sample apartments once with local photos and full test details.
+// The sample records are kept separate from real user data and are never re-added.
+const DEMO_SEED_MARKER = path.join(DATA_ROOT, ".v545-demo-seeded");
+if(!fs.existsSync(DEMO_SEED_MARKER)){
+  try{
+    const aid=n=>db.prepare("SELECT id FROM areas WHERE name=?").get(n)?.id;
+    const samples=[
+      ["D-101","دير غبار","متاحة",450,3,2,1,2,120,"شقة تجريبية — أثاث فاخر وإطلالة هادئة"],
+      ["D-102","الرابية","متاحة",400,2,2,1,1,110,"شقة تجريبية — قريبة من الخدمات"],
+      ["D-103","الصويفية","قريبة من التوفر",500,3,2,1,3,130,"شقة تجريبية — تنبيه قبل التوفر بـ 5 أيام"],
+      ["D-104","تلاع العلي","متاحة",420,2,2,1,2,115,"شقة تجريبية — تشطيب حديث"],
+      ["D-105","الشميساني","مؤجرة / محجوزة",550,3,2,1,4,125,"شقة تجريبية — عقد سنوي"],
+      ["D-106","الدوار السابع","متاحة",350,2,1,1,1,95,"شقة تجريبية — مناسبة للعائلة الصغيرة"],
+      ["D-107","خلدا","قريبة من التوفر",600,3,3,1,2,140,"شقة تجريبية — تنبيه قبل التوفر بـ 7 أيام"],
+      ["D-108","دير غبار","متاحة",430,2,2,1,3,105,"شقة تجريبية — صالة واسعة"],
+      ["D-109","مرج الحمام","مؤجرة / محجوزة",450,2,2,1,1,110,"شقة تجريبية — موقف سيارة"],
+      ["D-110","أم أذينة","متاحة",700,3,3,1,5,160,"شقة تجريبية — مستوى فاخر"],
+      ["D-111","البسيسين","متاحة",380,2,2,1,2,100,"شقة تجريبية — شرفة واسعة"],
+      ["D-112","ماحص","قريبة من التوفر",520,3,2,1,3,135,"شقة تجريبية — تنبيه قبل التوفر بـ 4 أيام"]
+    ];
+    const ins=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled,location_url,location_label)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const doc=db.prepare(`INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)`);
+    const days={"D-103":5,"D-107":7,"D-112":4};
+    const tx=db.transaction(()=>{
+      samples.forEach((x,i)=>{
+        const areaId=aid(x[1]);
+        if(!areaId) return;
+        const near=x[2]==="قريبة من التوفر";
+        const availableDate=near?new Date(Date.now()+days[x[0]]*86400000).toISOString().slice(0,10):null;
+        const r=ins.run(x[0],x[0],areaId,x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],"شهري",0,x[3],x[3]*12,availableDate,1,1,1,near?days[x[0]]:0,near?1:0,"",`${x[1]} — موقع تجريبي`);
+        const filename=`demo-apartment-${String(i+1).padStart(2,'0')}.jpg`;
+        const src=path.join(__dirname,'demo_photos',filename);
+        const dst=path.join(UPLOAD_DIR,filename);
+        if(fs.existsSync(src) && !fs.existsSync(dst)) fs.copyFileSync(src,dst);
+        doc.run(r.lastInsertRowid,filename,`صورة تجريبية ${i+1}`,'صورة شقة');
+      });
+    });
+    tx();
+    fs.writeFileSync(DEMO_SEED_MARKER,new Date().toISOString());
+    log('إضافة شقق تجريبية','تمت إضافة 12 شقة وهمية مع صور وتفاصيل للإختبار','system');
+  }catch(e){ console.error('demo seed failed:',e); }
+}
+
 app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.43.2"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.45.0"}));
+
+// v5.44 Web Share Target: receive a Google Maps/location link shared from another app.
+app.get('/share-location',(req,res)=>{
+  const raw=String(req.query.url||req.query.text||'').trim();
+  const title=String(req.query.title||'').trim();
+  const q=new URLSearchParams();
+  if(raw) q.set('share_url',raw);
+  if(title) q.set('share_title',title);
+  res.redirect('/'+(q.toString()?('?'+q.toString()):''));
+});
 
 app.get("/",(req,res)=>{
   res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
