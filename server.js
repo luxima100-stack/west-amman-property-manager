@@ -303,6 +303,8 @@ app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.41.2"}));
+
 app.get("/",(req,res)=>{
   res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma","no-cache");
