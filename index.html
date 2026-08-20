@@ -465,6 +465,63 @@ button:disabled, .btn:disabled{
 }
 </style>
 
+
+<style id="v534-soft-3d">
+/* v5.34 — soft, elegant 3D buttons */
+:root{
+  --soft-gold-top:#f7e6a3;
+  --soft-gold-mid:#dfbf62;
+  --soft-gold-bottom:#c39a38;
+  --soft-gold-border:#b48a2c;
+  --soft-gold-shadow:rgba(116,82,20,.18);
+}
+button, .btn, a.btn{
+  background:linear-gradient(180deg,var(--soft-gold-top) 0%,var(--soft-gold-mid) 48%,var(--soft-gold-bottom) 100%) !important;
+  color:#241b08 !important;
+  border:1px solid var(--soft-gold-border) !important;
+  border-radius:9px !important;
+  font-weight:800 !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.72),
+    inset 0 -1px 1px rgba(92,62,8,.12),
+    0 2px 0 rgba(117,82,18,.38),
+    0 4px 9px var(--soft-gold-shadow) !important;
+  text-shadow:none !important;
+  transition:transform .12s ease,box-shadow .12s ease,filter .12s ease !important;
+}
+button:hover, .btn:hover, a.btn:hover{
+  filter:brightness(1.025) !important;
+  transform:translateY(-1px) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.8),
+    inset 0 -1px 1px rgba(92,62,8,.1),
+    0 3px 0 rgba(117,82,18,.34),
+    0 6px 12px rgba(116,82,20,.16) !important;
+}
+button:active, .btn:active, a.btn:active{
+  transform:translateY(1px) !important;
+  box-shadow:
+    inset 0 2px 3px rgba(92,62,8,.14),
+    0 1px 0 rgba(117,82,18,.28),
+    0 2px 5px rgba(116,82,20,.12) !important;
+}
+button:disabled, .btn:disabled{
+  opacity:.62 !important;
+  transform:none !important;
+}
+/* Keep semantic action colors subtle */
+.btn.danger, button.danger{
+  background:linear-gradient(180deg,#f2b5aa,#d77d70,#bd5b4e) !important;
+  border-color:#a54c42 !important;
+  color:#240604 !important;
+}
+.wa-btn{
+  background:linear-gradient(180deg,#d8ebbd,#b8d486,#9bb967) !important;
+  border-color:#829d50 !important;
+  color:#162006 !important;
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
