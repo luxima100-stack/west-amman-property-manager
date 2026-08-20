@@ -365,21 +365,34 @@ if(!fs.existsSync(DEMO_SEED_MARKER)){
   }catch(e){ console.error('demo seed failed:',e); }
 }
 
+
+// v5.46 demo-photo repair: if the demo apartments already exist but their
+// local image files were lost/omitted during an earlier deploy, restore them
+// and ensure each demo apartment has its photo document. This runs safely on
+// every startup and never duplicates documents.
+try {
+  const demoRows = db.prepare("SELECT id, number FROM apartments WHERE number LIKE 'D-%'").all();
+  const docIns = db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)");
+  for (const a of demoRows) {
+    const m = String(a.number||'').match(/^D-(\\d+)$/);
+    if (!m) continue;
+    const idx = Number(m[1]) - 100;
+    if (!(idx >= 1 && idx <= 12)) continue;
+    const filename = `demo-apartment-${String(idx).padStart(2,'0')}.jpg`;
+    const src = path.join(__dirname,'demo_photos',filename);
+    const dst = path.join(UPLOAD_DIR,filename);
+    if (fs.existsSync(src) && !fs.existsSync(dst)) fs.copyFileSync(src,dst);
+    const existing = db.prepare("SELECT id FROM documents WHERE apartment_id=? AND kind='صورة شقة' AND filename=? LIMIT 1").get(a.id,filename);
+    if (fs.existsSync(dst) && !existing) docIns.run(a.id,filename,`صورة تجريبية ${idx}`,'صورة شقة');
+  }
+} catch (e) { console.error('demo photo repair failed:', e); }
+
 app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.45.0"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.46.1"}));
 
-// v5.44 Web Share Target: receive a Google Maps/location link shared from another app.
-app.get('/share-location',(req,res)=>{
-  const raw=String(req.query.url||req.query.text||'').trim();
-  const title=String(req.query.title||'').trim();
-  const q=new URLSearchParams();
-  if(raw) q.set('share_url',raw);
-  if(title) q.set('share_title',title);
-  res.redirect('/'+(q.toString()?('?'+q.toString()):''));
-});
 
 app.get("/",(req,res)=>{
   res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -553,6 +566,8 @@ app.post("/api/apartments",auth,(req,res)=>{
   const x=req.body||{};
   if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
   const code=String(x.code||x.number).trim();
+  const duplicate=db.prepare("SELECT id FROM apartments WHERE code=? OR number=? LIMIT 1").get(code, String(x.number).trim());
+  if(duplicate) return res.status(409).json({error:"هذا الكود مستخدم بالفعل"});
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
   const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled,latitude,longitude,location_url,location_label)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
@@ -563,9 +578,12 @@ app.post("/api/apartments",auth,(req,res)=>{
 app.put("/api/apartments/:id",auth,(req,res)=>{
   if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
   const x=req.body||{};
+  const code=String(x.code||x.number).trim();
+  const duplicate=db.prepare("SELECT id FROM apartments WHERE (code=? OR number=?) AND id<>? LIMIT 1").get(code, String(x.number).trim(), Number(req.params.id));
+  if(duplicate) return res.status(409).json({error:"هذا الكود مستخدم بالفعل"});
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
   db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=?,latitude=?,longitude=?,location_url=?,location_label=? WHERE id=?`)
-    .run(x.number,String(x.code||x.number),x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"",req.params.id);
+    .run(x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"",req.params.id);
   log("تعديل شقة",`تم تعديل الشقة ${x.number}`,req.user.username);res.json({ok:true});
 });
 
@@ -774,10 +792,9 @@ app.get('/property/:id',(req,res)=>{
   const a=db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id WHERE a.id=?`).get(req.params.id);
   if(!a) return res.status(404).send('<h2 style="font-family:Arial;text-align:center">الشقة غير موجودة</h2>');
   const photos=db.prepare(`SELECT filename,original_name FROM documents WHERE apartment_id=? AND kind='صورة شقة' ORDER BY id DESC`).all(a.id);
-  const map=a.location_url || (a.latitude&&a.longitude?`https://www.google.com/maps?q=${a.latitude},${a.longitude}`:'');
   const photo=photos[0]?.filename?`<img src="/uploads/${encodeURIComponent(photos[0].filename)}" style="width:100%;max-height:420px;object-fit:cover;border-radius:18px">`:'';
   const share= `${req.protocol}://${req.get('host')}/property/${a.id}`;
-  res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><meta name="viewport" content="width=device-width,initial-scale=1"><title>شقة ${String(a.number).replace(/</g,'')}</title><style>body{margin:0;background:#07101a;color:#fff;font-family:Arial,sans-serif}.wrap{max-width:900px;margin:auto;padding:18px}.brand{color:#e5b957;font-size:24px;font-weight:900;margin:10px 0 18px}.card{background:#101b27;border:1px solid #8f6b2a;border-radius:22px;padding:16px;box-shadow:0 12px 40px #0006}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:15px}.item{background:#172433;border-radius:14px;padding:12px}.item b{display:block;color:#f0cc76;margin-bottom:5px}.price{font-size:25px;color:#f0cc76;font-weight:900;margin:18px 0}.btn{display:inline-block;background:#e1b451;color:#111;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:900;margin:5px}.muted{color:#b9c2cc}</style><div class="wrap"><div class="brand">عقارات عمان الغربية<br><small class="muted">WEST AMMAN REAL ESTATE</small></div><div class="card">${photo}<h1>شقة ${String(a.number).replace(/</g,'')}</h1><div class="muted">${String(a.area||'')}</div><div class="grid"><div class="item"><b>الغرف</b>${a.rooms||0}</div><div class="item"><b>الحمامات</b>${a.baths||0}</div><div class="item"><b>المساحة</b>${a.size_m2||0} م²</div><div class="item"><b>الطابق</b>${a.floor||0}</div><div class="item"><b>الحالة</b>${String(a.status||'')}</div></div><div class="price">${Number(a.monthly_rent||a.rent||0).toLocaleString()} د.أ / ${String(a.rental_type||'شهري')}</div>${map?`<a class="btn" href="${map}" target="_blank" rel="noopener">📍 فتح الموقع</a><a class="btn" href="https://wa.me/?text=${encodeURIComponent('موقع شقة '+a.number+' في '+(a.area||'')+'\n'+map)}">🟢 إرسال الموقع واتساب</a>`:''}<a class="btn" href="https://wa.me/?text=${encodeURIComponent('شقة '+a.number+' — '+(a.area||'')+'\n'+share)}">🟢 مشاركة الشقة</a><p class="muted">هذه صفحة عرض عامة ولا تتطلب تسجيل دخول.</p></div></div></html>`);
+  res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><meta name="viewport" content="width=device-width,initial-scale=1"><title>شقة ${String(a.number).replace(/</g,'')}</title><style>body{margin:0;background:#07101a;color:#fff;font-family:Arial,sans-serif}.wrap{max-width:900px;margin:auto;padding:18px}.brand{color:#e5b957;font-size:24px;font-weight:900;margin:10px 0 18px}.card{background:#101b27;border:1px solid #8f6b2a;border-radius:22px;padding:16px;box-shadow:0 12px 40px #0006}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:15px}.item{background:#172433;border-radius:14px;padding:12px}.item b{display:block;color:#f0cc76;margin-bottom:5px}.price{font-size:25px;color:#f0cc76;font-weight:900;margin:18px 0}.btn{display:inline-block;background:#e1b451;color:#111;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:900;margin:5px}.muted{color:#b9c2cc}</style><div class="wrap"><div class="brand">عقارات عمان الغربية<br><small class="muted">WEST AMMAN REAL ESTATE</small></div><div class="card">${photo}<h1>شقة ${String(a.number).replace(/</g,'')}</h1><div class="muted">${String(a.area||'')}</div><div class="grid"><div class="item"><b>الغرف</b>${a.rooms||0}</div><div class="item"><b>الحمامات</b>${a.baths||0}</div><div class="item"><b>المساحة</b>${a.size_m2||0} م²</div><div class="item"><b>الطابق</b>${a.floor||0}</div><div class="item"><b>الحالة</b>${String(a.status||'')}</div></div><div class="price">${Number(a.monthly_rent||a.rent||0).toLocaleString()} د.أ / ${String(a.rental_type||'شهري')}</div><a class="btn" href="https://wa.me/?text=${encodeURIComponent('شقة '+a.number+' — '+(a.area||'')+'\n'+share)}">🟢 مشاركة الشقة</a><p class="muted">هذه صفحة عرض عامة ولا تتطلب تسجيل دخول.</p></div></div></html>`);
 });
 
 app.use((req,res,next)=>{

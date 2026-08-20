@@ -7,15 +7,5 @@
   "lang": "ar",
   "theme_color": "#080e16",
   "background_color": "#f5f1e8",
-  "icons": [],
-  "share_target": {
-    "action": "/share-location",
-    "method": "GET",
-    "enctype": "application/x-www-form-urlencoded",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  }
+  "icons": []
 }
