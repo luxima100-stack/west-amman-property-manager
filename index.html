@@ -295,45 +295,125 @@ function photoHtml(d,i){return `<div class="photo" data-apartment="${d.apartment
 function videoHtml(d){return `<div class="video-wrap v55-video-card" onclick="openMiniVideo(${d.apartment_id})"><div class="v55-video-play-label">▶ تشغيل مصغر</div><video class="v55-video-thumb" muted playsinline preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row" onclick="event.stopPropagation()"><span class="muted">${esc(d.original_name)}</span><div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn ghost" onclick="openMiniVideo(${d.apartment_id})">▶ تشغيل</button>${me.role==="owner"?`<button class="v55-share-btn v55-share-video" onclick="shareApartmentVideo(${d.apartment_id})">🎥 مشاركة الفيديو</button>`:""}${me.role!=="user"?`<button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button>`:""}</div></div></div>`}
 
 
-async function shareMediaFiles(id, kind){
+async function shareMediaFiles(id,kind){
   try{
     if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
     const docs=D.documents.filter(d=>d.apartment_id===id && d.kind===kind);
     if(!docs.length){alert(kind==="صورة شقة"?"لا توجد صور لهذه الشقة":"لا يوجد فيديو لهذه الشقة");return;}
 
-    const files=[];
-    for(const d of docs){
-      const r=await fetch("/uploads/"+encodeURIComponent(d.filename),{credentials:"same-origin"});
-      if(!r.ok) continue;
-      const blob=await r.blob();
-      let type=blob.type;
-      if(!type){
-        const ext=(d.filename||"").toLowerCase().split(".").pop();
-        type=kind==="صورة شقة" ? (ext==="png"?"image/png":ext==="webp"?"image/webp":"image/jpeg")
-                               : (ext==="webm"?"video/webm":"video/mp4");
+    if(kind!=="صورة شقة"){
+      return shareFilesDirect(docs,kind);
+    }
+
+    // Photo picker: allow up to 30 photos, then share in batches of 10 when the device/WhatsApp limits the batch size.
+    const box=document.createElement('div');
+    box.className='final-alert-modal';
+    box.style.zIndex='2500';
+    box.innerHTML=`<div class="final-alert-panel" style="max-width:760px;width:96vw;max-height:90vh;overflow:auto">
+      <button class="final-alert-close" id="photoPickerClose">✕ إغلاق</button>
+      <h3 style="margin:0 0 10px">🖼️ تحديد صور الشقة</h3>
+      <div class="notice" style="margin-bottom:10px">يمكنك تحديد حتى <b>30 صورة</b>. إذا كان الهاتف لا يسمح بإرسال 30 صورة دفعة واحدة، سيتم تقسيمها تلقائياً إلى مجموعات من 10 صور.</div>
+      <div id="photoCount" class="notice" style="margin-bottom:10px">تم تحديد 0 من ${Math.min(docs.length,30)} صورة</div>
+      <div class="wa-photo-list" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${docs.slice(0,30).map((d,i)=>`<label class="wa-photo-item" style="display:block;position:relative;border:2px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer">
+          <input type="checkbox" data-i="${i}" style="position:absolute;top:7px;right:7px;z-index:2;width:20px;height:20px">
+          <img src="/uploads/${encodeURIComponent(d.filename)}" alt="صورة ${i+1}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block">
+        </label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn ghost" id="photoSelectAll">تحديد أول 30</button>
+        <button class="btn ghost" id="photoClearAll">إلغاء التحديد</button>
+        <button class="btn wa-btn" id="photoShare">🟢 إرسال الصور المحددة</button>
+      </div>
+      <div id="photoBatch" class="notice" style="margin-top:10px;display:none"></div>
+    </div>`;
+    document.body.appendChild(box);
+
+    const countEl=box.querySelector('#photoCount');
+    const checks=()=>[...box.querySelectorAll('input[type=checkbox]')];
+    const refresh=()=>{
+      const selected=checks().filter(x=>x.checked);
+      countEl.textContent=`تم تحديد ${selected.length} من ${Math.min(docs.length,30)} صورة`;
+      checks().forEach(c=>c.closest('.wa-photo-item').style.borderColor=c.checked?'#b8953f':'transparent');
+    };
+    box.querySelector('#photoPickerClose').onclick=()=>box.remove();
+    box.onclick=e=>{if(e.target===box)box.remove()};
+    box.querySelector('#photoSelectAll').onclick=()=>{checks().forEach(c=>c.checked=true);refresh()};
+    box.querySelector('#photoClearAll').onclick=()=>{checks().forEach(c=>c.checked=false);refresh()};
+    checks().forEach(c=>c.onchange=refresh);
+
+    box.querySelector('#photoShare').onclick=async()=>{
+      const selected=checks().filter(c=>c.checked).map(c=>docs[Number(c.dataset.i)]).slice(0,30);
+      if(!selected.length){alert('حدد صورة واحدة على الأقل');return;}
+      const btn=box.querySelector('#photoShare');
+      btn.disabled=true; btn.textContent='⏳ تجهيز الصور...';
+      try{
+        const files=[];
+        for(const d of selected){
+          const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
+          if(!r.ok) continue;
+          const blob=await r.blob();
+          const ext=(d.filename||'').toLowerCase().split('.').pop();
+          const type=blob.type || (ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg');
+          files.push(new File([blob],d.original_name||d.filename,{type,lastModified:Date.now()}));
+        }
+        if(!files.length)throw Error('تعذر تجهيز الصور للمشاركة');
+
+        // First try all selected photos in one native share action.
+        if(navigator.share && navigator.canShare && navigator.canShare({files})){
+          await navigator.share({title:'صور الشقة',text:`${files.length} صورة للشقة`,files});
+          btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
+          return;
+        }
+
+        // If the device limits the number of shared files, use batches of 10.
+        const batches=[]; for(let i=0;i<files.length;i+=10)batches.push(files.slice(i,i+10));
+        let batchIndex=0;
+        const batchBox=box.querySelector('#photoBatch');
+        const sendBatch=async()=>{
+          const batch=batches[batchIndex];
+          if(!batch)return;
+          if(!navigator.share||!navigator.canShare||!navigator.canShare({files:batch})){
+            throw Error('الهاتف لا يدعم مشاركة هذه المجموعة من الصور عبر المشاركة المباشرة.');
+          }
+          await navigator.share({title:`صور الشقة — المجموعة ${batchIndex+1}`,text:`المجموعة ${batchIndex+1} من ${batches.length}`,files:batch});
+          batchIndex++;
+          if(batchIndex<batches.length){
+            batchBox.style.display='block';
+            batchBox.innerHTML=`تم إرسال المجموعة ${batchIndex} من ${batches.length}. اضغط الزر لإرسال المجموعة التالية (${batches[batchIndex].length} صور). <button class="btn wa-btn" id="nextPhotoBatch" style="margin-top:8px">🟢 إرسال المجموعة التالية</button>`;
+            batchBox.querySelector('#nextPhotoBatch').onclick=sendBatch;
+          }else{
+            batchBox.style.display='block';
+            batchBox.textContent=`✅ تم إرسال جميع الصور المحددة (${files.length} صورة) على ${batches.length} مجموعات.`;
+            btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
+          }
+        };
+        await sendBatch();
+      }catch(e){
+        if(e?.name!=='AbortError') alert(e?.message||'تعذر مشاركة الصور');
+        btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
       }
-      files.push(new File([blob],d.original_name||d.filename,{type}));
-    }
-    if(!files.length) throw Error("لم يتم تجهيز الملفات");
+    };
+    refresh();
+  }catch(e){if(e?.name!=='AbortError')alert(e?.message||'تعذر مشاركة الصور');}
+}
 
-    if(navigator.share && navigator.canShare && navigator.canShare({files})){
-      await navigator.share({
-        title: kind==="صورة شقة" ? "صور الشقة" : "فيديو الشقة",
-        files
-      });
-      return;
-    }
-
-    // Fallback: open the first media so the user can use the device's share menu.
-    const u=URL.createObjectURL(files[0]);
-    const a=document.createElement("a"); a.href=u; a.download=files[0].name; a.click();
-    setTimeout(()=>URL.revokeObjectURL(u),1000);
-    alert("متصفحك لا يدعم مشاركة الوسائط مباشرة. تم تجهيز الملف الأول للمشاركة من الجهاز.");
-  }catch(e){
-    if(e?.name==="AbortError") return;
-    console.error(e);
-    alert("تعذر مشاركة الوسائط. تأكد من السماح للمتصفح بالمشاركة ثم جرّب مرة أخرى.");
+async function shareFilesDirect(docs,kind){
+  const files=[];
+  for(const d of docs){
+    const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
+    if(!r.ok)continue;
+    const blob=await r.blob();
+    const ext=(d.filename||'').toLowerCase().split('.').pop();
+    const type=blob.type || (ext==='webm'?'video/webm':'video/mp4');
+    files.push(new File([blob],d.original_name||d.filename,{type}));
   }
+  if(!files.length)throw Error('لم يتم تجهيز الملف');
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files})){
+    await navigator.share({title:kind==='فيديو شقة'?'فيديو الشقة':'الوسائط',files});
+    return;
+  }
+  throw Error('متصفح الهاتف لا يدعم مشاركة الملفات مباشرة');
 }
 async function shareApartmentPhotos(id){return shareMediaFiles(id,"صورة شقة")}
 async function shareApartmentVideo(id){return shareMediaFiles(id,"فيديو شقة")}
