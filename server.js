@@ -6,7 +6,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -17,23 +17,64 @@ const UPLOAD_DIR = path.join(__dirname, "uploads");
 fs.mkdirSync(UPLOAD_DIR, {recursive:true});
 const BACKUP_DIR = path.join(__dirname, "backups");
 fs.mkdirSync(BACKUP_DIR, {recursive:true});
+const BACKUP_STATE = path.join(BACKUP_DIR, "backup-state.json");
+const RESTORE_STATE = path.join(BACKUP_DIR, "restore-state.json");
+const BACKUP_INTERVAL_MS = 24*60*60*1000;
+let backupRunning = false;
+function readBackupState(){
+  try{return JSON.parse(fs.readFileSync(BACKUP_STATE,"utf8"));}catch{return {lastSuccessAt:null,lastSuccessFile:null,lastReason:null,lastError:null};}
+}
+function writeBackupState(patch){
+  try{const current=readBackupState();fs.writeFileSync(BACKUP_STATE,JSON.stringify({...current,...patch},null,2));}catch{}
+}
+function pruneBackups(){
+  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort();
+  while(files.length>10){const old=files.shift();try{fs.unlinkSync(path.join(BACKUP_DIR,old));}catch{}}
+  return files.slice(-10);
+}
 function autoBackup(reason="auto"){
-  try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch(e){}
-  const stamp=new Date().toISOString().replace(/[:.]/g,"-");
-  const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
-  const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
-  try{ execFile("tar",["-czf",out,"data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"],{cwd:__dirname},(err)=>{
-    if(err) return;
-    try{ const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort(); while(files.length>10){ const old=files.shift(); try{fs.unlinkSync(path.join(BACKUP_DIR,old))}catch(e){} } }catch(e){}
-  }); }catch(e){}
+  if(backupRunning) return Promise.resolve({ok:false,skipped:true,reason:"running"});
+  backupRunning=true;
+  return new Promise(resolve=>{
+    try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch{}
+    const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+    const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
+    const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
+    const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
+    execFile("tar",["-czf",out,...items],{cwd:__dirname},(err)=>{
+      backupRunning=false;
+      if(err){
+        try{fs.unlinkSync(out);}catch{}
+        writeBackupState({lastError:String(err.message||err),lastAttemptAt:new Date().toISOString()});
+        return resolve({ok:false,error:String(err.message||err)});
+      }
+      const kept=pruneBackups();
+      const now=new Date().toISOString();
+      writeBackupState({lastSuccessAt:now,lastSuccessFile:path.basename(out),lastReason:reason,lastError:null,lastAttemptAt:now,keptCount:kept.length});
+      resolve({ok:true,file:path.basename(out),keptCount:kept.length});
+    });
+  });
 }
 
+function requireChildTarList(file){
+  const out=execFileSync("tar",["-tzf",file],{encoding:"utf8"});
+  return out.split(/\r?\n/).map(x=>x.replace(/^\.\//,"")).filter(Boolean);
+}
+function execFileSyncSafeTarExtract(file,dest){
+  execFileSync("tar",["-xzf",file,"-C",dest,"--no-same-owner","--","data.db","uploads"],{stdio:"pipe"});
+}
 
 const db = new Database(DB_FILE);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
-autoBackup("startup");
-setInterval(()=>autoBackup("scheduled"),24*60*60*1000);
+const stateAtBoot=readBackupState();
+if(!stateAtBoot.lastSuccessAt || (Date.now()-Date.parse(stateAtBoot.lastSuccessAt))>=BACKUP_INTERVAL_MS){
+  setTimeout(()=>autoBackup("startup-due"),1500);
+}
+setInterval(()=>{
+  const st=readBackupState();
+  if(!st.lastSuccessAt || (Date.now()-Date.parse(st.lastSuccessAt))>=BACKUP_INTERVAL_MS) autoBackup("scheduled");
+},60*60*1000);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(
@@ -150,6 +191,14 @@ if(db.prepare("SELECT COUNT(*) c FROM apartments").get().c===0){
   ["301","الصويفية","غير متاحة / صيانة",650,2,1,1,2,75,"صيانة مطبخ"]
  ].forEach(x=>add.run(x[0],aid(x[1]),x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9]));
 }
+
+try{
+  if(fs.existsSync(RESTORE_STATE)){
+    const rr=JSON.parse(fs.readFileSync(RESTORE_STATE,"utf8"));
+    log("استرجاع نسخة احتياطية",`تم استرجاع النسخة ${rr.backup||"—"} بواسطة ${rr.user||"—"}`,rr.user||"system");
+    fs.unlinkSync(RESTORE_STATE);
+  }
+}catch{}
 
 const videoUpload = multer({
   storage: multer.diskStorage({
@@ -410,7 +459,74 @@ app.delete("/api/logs",auth,(req,res)=>{
   res.json({ok:true});
 });
 
-app.get("/api/export/full-backup",auth,(req,res)=>res.status(410).json({error:"تم استبدال الحفظ اليدوي بالنسخ الاحتياطي التلقائي"}));
+app.get("/api/backup/status",auth,(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
+  const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort().reverse().slice(0,10);
+  const state=readBackupState();
+  res.json({ok:true,state,backups:files.map(name=>{const st=fs.statSync(path.join(BACKUP_DIR,name));return {name,size:st.size,created_at:st.mtime.toISOString()};})});
+});
+app.post("/api/backup/now",auth,async(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
+  const result=await autoBackup("manual");
+  if(!result.ok) return res.status(500).json({error:"تعذر إنشاء النسخة الاحتياطية"});
+  log("نسخة احتياطية","تم إنشاء نسخة احتياطية يدوية",req.user.username);
+  res.json(result);
+});
+app.get("/api/backup/download/:name",auth,(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"صلاحية المالك فقط"});
+  const name=path.basename(String(req.params.name||""));
+  if(!/^west-amman-[A-Za-z0-9_-]+\.tar\.gz$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
+  const file=path.join(BACKUP_DIR,name);
+  if(!fs.existsSync(file)) return res.status(404).json({error:"النسخة غير موجودة"});
+  res.download(file,name);
+});
+
+app.post("/api/backup/restore/:name",auth,async(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"الاسترجاع متاح للمالك فقط"});
+  const name=path.basename(String(req.params.name||""));
+  if(!/^west-amman-[A-Za-z0-9_-]+\.tar\.gz$/.test(name)) return res.status(400).json({error:"اسم نسخة غير صالح"});
+  const archive=path.join(BACKUP_DIR,name);
+  if(!fs.existsSync(archive)) return res.status(404).json({error:"النسخة غير موجودة"});
+  const temp=path.join(BACKUP_DIR,`.restore-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const protectedArchive=path.join(__dirname,`.restore-protected-${Date.now()}-${Math.random().toString(36).slice(2)}.tar.gz`);
+  let switched=false, oldDb=null, oldUploads=null;
+  try{
+    fs.copyFileSync(archive,protectedArchive);
+    const pre=await autoBackup("before-restore");
+    if(!pre.ok) return res.status(500).json({error:"تعذر إنشاء نسخة أمان قبل الاسترجاع"});
+    fs.mkdirSync(temp,{recursive:true});
+    const listing=requireChildTarList(protectedArchive);
+    const unsafe=listing.find(x=>x.startsWith("/") || x.includes("../") || x.includes("\\"));
+    if(unsafe) throw Error("النسخة الاحتياطية غير صالحة للاسترجاع");
+    if(!listing.includes("data.db") || !listing.some(x=>x==="uploads" || x.startsWith("uploads/"))) throw Error("النسخة لا تحتوي على قاعدة البيانات والصور");
+    execFileSyncSafeTarExtract(protectedArchive,temp);
+    if(!fs.existsSync(path.join(temp,"data.db"))) throw Error("قاعدة البيانات غير موجودة داخل النسخة");
+    if(!fs.existsSync(path.join(temp,"uploads"))) throw Error("مجلد الصور غير موجود داخل النسخة");
+    fs.writeFileSync(RESTORE_STATE,JSON.stringify({backup:name,user:req.user.username,requestedAt:new Date().toISOString(),preRestoreBackup:pre.file},null,2));
+    try{db.pragma("wal_checkpoint(TRUNCATE)");}catch{}
+    db.close();
+    const stamp=Date.now();
+    oldDb=DB_FILE+`.pre-restore-${stamp}`;
+    oldUploads=UPLOAD_DIR+`.pre-restore-${stamp}`;
+    fs.renameSync(DB_FILE,oldDb);
+    for(const suffix of ["-wal","-shm"]){if(fs.existsSync(DB_FILE+suffix)) fs.renameSync(DB_FILE+suffix,oldDb+suffix);}
+    fs.renameSync(UPLOAD_DIR,oldUploads);
+    fs.renameSync(path.join(temp,"data.db"),DB_FILE);
+    fs.renameSync(path.join(temp,"uploads"),UPLOAD_DIR);
+    switched=true;
+    try{fs.rmSync(oldDb,{force:true});fs.rmSync(oldDb+"-wal",{force:true});fs.rmSync(oldDb+"-shm",{force:true});fs.rmSync(oldUploads,{recursive:true,force:true});}catch{}
+    res.json({ok:true,message:"تم تجهيز الاسترجاع. سيعاد تشغيل الموقع تلقائيًا."});
+    setTimeout(()=>process.exit(0),700);
+  }catch(e){
+    if(!switched){
+      try{if(!fs.existsSync(DB_FILE) && oldDb && fs.existsSync(oldDb)) fs.renameSync(oldDb,DB_FILE);}catch{}
+      try{if(!fs.existsSync(UPLOAD_DIR) && oldUploads && fs.existsSync(oldUploads)) fs.renameSync(oldUploads,UPLOAD_DIR);}catch{}
+      try{if(fs.existsSync(RESTORE_STATE)) fs.unlinkSync(RESTORE_STATE);}catch{}
+    }
+    if(!res.headersSent) res.status(500).json({error:String(e.message||e)});
+  }finally{try{fs.rmSync(temp,{recursive:true,force:true});}catch{} try{fs.rmSync(protectedArchive,{force:true});}catch{}}
+});
+app.get("/api/export/full-backup",auth,(req,res)=>res.status(410).json({error:"الحفظ اليدوي للنسخة الكاملة غير متاح؛ النسخ الاحتياطي التلقائي يحفظ البيانات والصور كل 24 ساعة ويحتفظ بآخر 10 نسخ"}));
 
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
  const rows=db.prepare(`SELECT a.number,ar.name area,a.status,a.rent,a.rooms,a.baths,a.floor,a.size_m2,a.notes FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id`).all();
