@@ -177,10 +177,22 @@ for (const [field, type] of apartmentFieldMigrations) {
 // v5 availability-alert fields: each apartment can have its own alert lead time.
 for (const [field, type] of [
   ["availability_alert_days", "INTEGER DEFAULT 0"],
-  ["availability_alert_enabled", "INTEGER DEFAULT 0"]
+  ["availability_alert_enabled", "INTEGER DEFAULT 0"],
+  ["code", "TEXT DEFAULT ''"],
+  ["rental_type", "TEXT DEFAULT 'شهري'"],
+  ["daily_rent", "REAL DEFAULT 0"],
+  ["monthly_rent", "REAL DEFAULT 0"],
+  ["annual_rent", "REAL DEFAULT 0"],
+  ["available_date", "TEXT"],
+  ["living_rooms", "INTEGER DEFAULT 0"],
+  ["salons", "INTEGER DEFAULT 0"],
+  ["balconies", "INTEGER DEFAULT 0"]
 ]) {
   try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch (e) {}
 }
+
+// v5.8: ensure every apartment has a visible internal code.
+db.prepare("UPDATE apartments SET code=number WHERE COALESCE(code,'')='' OR code IS NULL").run();
 
 app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR));
@@ -251,20 +263,26 @@ app.put("/api/users/:id",auth,(req,res)=>{
 });
 
 app.post("/api/apartments",auth,(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
- const x=req.body;
- if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
- const r=db.prepare(`INSERT INTO apartments(number,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes)
- VALUES(?,?,?,?,?,?,?,?,?,?)`).run(x.number,x.area_id,x.status,x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"");
- log("إضافة شقة",`تمت إضافة الشقة ${x.number}`,req.user.username);res.json({id:r.lastInsertRowid});
+  if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+  const x=req.body||{};
+  if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
+  const code=String(x.code||x.number).trim();
+  const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
+  const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0);
+  log("إضافة شقة",`تمت إضافة الشقة ${x.number}`,req.user.username);res.json({id:r.lastInsertRowid});
 });
+
 app.put("/api/apartments/:id",auth,(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
- const x=req.body;
- db.prepare(`UPDATE apartments SET number=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=? WHERE id=?`)
- .run(x.number,x.area_id,x.status,x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",req.params.id);
- log("تعديل شقة",`تم تعديل الشقة ${x.number}`,req.user.username);res.json({ok:true});
+  if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
+  const x=req.body||{};
+  const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
+  db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=? WHERE id=?`)
+    .run(x.number,String(x.code||x.number),x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,req.params.id);
+  log("تعديل شقة",`تم تعديل الشقة ${x.number}`,req.user.username);res.json({ok:true});
 });
+
 app.delete("/api/apartments/:id",auth,(req,res)=>{
  if(!deleteOK(req.user.role)) return res.status(403).json({error:"الحذف متاح للمالك فقط"});
  const a=db.prepare("SELECT number FROM apartments WHERE id=?").get(req.params.id);
@@ -361,6 +379,13 @@ app.post("/api/messages",auth,(req,res)=>{
  res.json({ok:true,id:r.lastInsertRowid});
 });
 
+app.delete("/api/logs",auth,(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"مسح السجل متاح للمالك فقط"});
+  db.prepare("DELETE FROM logs").run();
+  log("مسح السجل","تم مسح سجل العمليات بالكامل",req.user.username);
+  res.json({ok:true});
+});
+
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
  const rows=db.prepare(`SELECT a.number,ar.name area,a.status,a.rent,a.rooms,a.baths,a.floor,a.size_m2,a.notes FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id`).all();
  const header="number,area,status,rent,rooms,baths,floor,size_m2,notes\n";
@@ -396,7 +421,7 @@ app.get('/api/availability-alerts', auth, (req,res)=>{
   const now = new Date();
   const alerts = rows.map(a=>{
     // Use explicit available_from when present; otherwise infer from end_date.
-    const raw = a.available_from || a.available_date || a.end_date;
+    const raw = a.available_date;
     if (!raw) return null;
     const d = new Date(raw);
     if (Number.isNaN(d.getTime())) return null;
@@ -414,7 +439,7 @@ app.get('/api/availability-dashboard', auth, (req,res)=>{
   if (!['owner','admin'].includes(req.user?.role))
     return res.status(403).json({error:'غير مصرح'});
   const rows = db.prepare(`
-    SELECT id, code, name, available_from, available_date, end_date,
+    SELECT id, number, code, available_date,
            availability_alert_days, availability_alert_enabled
     FROM apartments
     WHERE COALESCE(availability_alert_enabled,0)=1
@@ -422,13 +447,13 @@ app.get('/api/availability-dashboard', auth, (req,res)=>{
   `).all();
   const now = new Date();
   const alerts = rows.map(a=>{
-    const raw = a.available_from || a.available_date || a.end_date;
+    const raw = a.available_date;
     if (!raw) return null;
     const d = new Date(raw);
     if (Number.isNaN(d.getTime())) return null;
     const days = Math.ceil((d-now)/86400000);
     if (days < 0 || days > a.availability_alert_days) return null;
-    return {id:a.id, code:a.code, name:a.name, available_date:raw,
+    return {id:a.id, code:a.code||a.number, name:a.number, available_date:raw,
             days_until_available:days, alert_days:a.availability_alert_days};
   }).filter(Boolean).sort((a,b)=>a.days_until_available-b.days_until_available);
   res.json({count:alerts.length, alerts});
