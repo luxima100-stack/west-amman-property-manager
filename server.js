@@ -325,7 +325,7 @@ app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.42.0"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.43.1"}));
 
 app.get("/",(req,res)=>{
   res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -340,6 +340,22 @@ app.use(express.static(__dirname,{setHeaders:(res,file)=>{
     res.set("Expires","0");
   }
 }}));
+
+/* Application access policy:
+   - The management application is never publicly accessible as an authenticated session.
+   - /api/* requires auth except POST /api/login.
+   - /property/:id is the ONLY public property-sharing page and intentionally does not require login.
+   - Any other unknown browser URL is sent back to the login screen.
+   This keeps shared property links public while preventing shared application/dashboard links
+   from exposing the management interface. */
+app.use((req,res,next)=>{
+  if(req.path.startsWith('/api/')) return next();
+  if(req.path.startsWith('/uploads/')) return next();
+  if(req.path==='/property' || req.path.startsWith('/property/')) return next();
+  if(req.path==='/' || req.path==='/manifest.json' || req.path==='/sw.js' || req.path==='/hero-realestate.svg' || req.path==='/luxury-home-hero.jpg') return next();
+  if(req.method==='GET' && req.accepts('html')) return res.redirect(302,'/');
+  return next();
+});
 
 function auth(req,res,next){
  const h=req.headers.authorization||"";
