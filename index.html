@@ -1052,7 +1052,7 @@ function logout(){localStorage.clear();token=null;me=null;login()}
 function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
 window.addEventListener("load",()=>{});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
-login();
+if(token&&me) load(); else login();
 </script>
 
 
@@ -1349,20 +1349,5 @@ function homeAccessControl(){
 .danger-note{border-color:#e5a4a7!important;background:#fff1f1!important;color:#8e2228!important}
 @media(max-width:600px){.backup-status-grid{grid-template-columns:1fr}.backup-row{align-items:flex-start}.backup-row .btn{white-space:nowrap}}
 </style>
-
-
-<script id="v542-startup-guard">
-window.addEventListener("DOMContentLoaded",function(){
-  try{
-    localStorage.removeItem("wa_token");
-    localStorage.removeItem("wa_me");
-    token=null; me=null;
-    if(typeof login==="function") login();
-  }catch(e){
-    const root=document.getElementById("root");
-    if(root) root.innerHTML='<div class="login"><div class="loginbox"><h1>إدارة عقارات غرب عمّان</h1><p>يرجى إعادة تحميل الصفحة.</p></div></div>';
-  }
-});</script>
-
 </body>
 </html>

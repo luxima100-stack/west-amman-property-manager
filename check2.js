@@ -359,4 +359,4 @@ function logout(){localStorage.clear();token=null;me=null;login()}
 function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
 window.addEventListener("load",()=>{});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
-login();
+if(token&&me) load(); else login();
