@@ -366,7 +366,7 @@ if(!fs.existsSync(DEMO_SEED_MARKER)){
 }
 
 
-// v5.47 demo-photo repair: if the demo apartments already exist but their
+// v5.48 demo-photo repair: if the demo apartments already exist but their
 // local image files were lost/omitted during an earlier deploy, restore them
 // and ensure each demo apartment has its photo document. This runs safely on
 // every startup and never duplicates documents.
@@ -396,7 +396,7 @@ app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.47.0"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.48.0"}));
 
 
 app.get("/",(req,res)=>{
