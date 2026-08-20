@@ -1,20 +1,81 @@
 
-let token=localStorage.getItem("wa_token"),me=JSON.parse(localStorage.getItem("wa_me")||"null"),D=null,page="home",search="";
+let token=localStorage.getItem("wa_token"),me=null,D=null,page="home",search="";
+try{me=JSON.parse(localStorage.getItem("wa_me")||"null")}catch(e){localStorage.removeItem("wa_me");localStorage.removeItem("wa_token");token=null;me=null}
 const statuses=["متاحة","قريبة من التوفر","الحجز ينتهي قريباً","مؤجرة / محجوزة","غير متاحة / صيانة"];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 async function api(url,opt={}){opt.headers={...(opt.headers||{}),Authorization:"Bearer "+token};if(opt.body&&!opt.headers["Content-Type"])opt.headers["Content-Type"]="application/json";let r=await fetch(url,opt);let j=await r.json();if(!r.ok)throw Error(j.error||"خطأ");return j}
-function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><input id="lp" type="password" value="1234"></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
-async function doLogin(){try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
-async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
+function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>بيانات التجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" autocomplete="username" value="owner"></div><div class="field"><label>كلمة المرور</label><div class="v541-password-box"><input id="lp" autocomplete="current-password" type="password" value="1234"><button type="button" class="v541-eye" onclick="toggleLoginPassword()">👁️</button></div></div><div id="loginError" class="notice danger-note" style="display:none;margin-top:10px"></div><button id="loginBtn" class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
+function toggleLoginPassword(){const x=$("lp");if(!x)return;x.type=x.type==="password"?"text":"password";const b=document.querySelector(".v541-eye");if(b)b.textContent=x.type==="password"?"👁️":"🙈";}
+async function doLogin(){const btn=$("loginBtn"),err=$("loginError");try{
+ const username=($("lu")?.value||"").trim(),password=$("lp")?.value||"";
+ if(!username||!password)throw Error("يرجى إدخال اسم المستخدم وكلمة المرور");
+ if(btn){btn.disabled=true;btn.textContent="جاري تسجيل الدخول…"}
+ const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({username,password})});
+ const raw=await r.text();let j={};try{j=JSON.parse(raw)}catch{throw Error("تعذر الاتصال بخادم تسجيل الدخول")}
+ if(!r.ok||!j.token)throw Error(j.error||"اسم المستخدم أو كلمة المرور غير صحيحة");
+ token=j.token;me=j.user;
+ localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));
+ await load();
+}catch(e){if(err){err.textContent=e.message||"تعذر تسجيل الدخول";err.style.display="block"}else alert(e.message);if(btn){btn.disabled=false;btn.textContent="تسجيل الدخول"}}}{try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
+async function load(){
+ if(!token||!me){return login();}
+ try{D=await api("/api/bootstrap");render();}
+ catch(e){localStorage.removeItem("wa_token");localStorage.removeItem("wa_me");token=null;me=null;login();}
+}
 function nav(p){page=p;search="";render()}
 function role(){return me.role==="owner"?"المالك":me.role==="admin"?"مسؤول النظام":"مستخدم عادي"}
-function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",security:"النسخ الاحتياطي والحماية",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo v513-logo3d">⌂</div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
-<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button><button class="${page==="security"?"active":""}" onclick="nav('security')">🔐 النسخ والحماية</button>${["owner","admin"].includes(me.role)?`<button class="${page==="chat"?"active":""}" onclick="nav('chat')">💬 المحادثة</button>`:""}<button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
+function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",security:"النسخ الاحتياطي والحماية",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo v513-logo3d v539-logo"><img src="/west-amman-luxury-logo.jpg" alt="عقارات عمان الغربية"></div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
+<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button>${["owner","admin"].includes(me.role)?`<button class="${page==="chat"?"active":""}" onclick="nav('chat')">💬 المحادثة</button>`:""}<button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
 function view(){return page==="home"?home():page==="apartments"?apartments():page==="tenants"?tenants():page==="finance"?finance():page==="users"?users():page==="chat"?chat():page==="security"?securityBackupPage():logs()}
-function home(){let s=D.stats||{};return `<div class="hero"><div><small>نسخة احترافية — كحلي وذهبي</small><h3>مرحباً بك في نظام إدارة عقارات غرب عمّان</h3><p>إدارة الشقق، المستأجرين، العقود، الدفعات، المستندات والصلاحيات.</p></div><button class="btn primary" onclick="nav('apartments')">إدارة العقارات</button></div><div class="stats"><div class="stat"><div class="n">${s.total||0}</div><div class="l">إجمالي الشقق</div></div><div class="stat"><div class="n">${s.available||0}</div><div class="l">متاحة</div></div><div class="stat"><div class="n">${s.soon||0}</div><div class="l">قريبة من التوفر</div></div><div class="stat"><div class="n">${s.rented||0}</div><div class="l">مؤجرة</div></div><div class="stat"><div class="n">${s.repair||0}</div><div class="l">صيانة</div></div><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">دفعات هذا الشهر د.أ</div></div></div><div class="panel"><div class="head"><h3>أحدث الشقق</h3><button class="btn ghost" onclick="nav('apartments')">عرض الكل</button></div><div class="cards">${D.apartments.slice(0,6).map(card).join("")}</div></div><div class="panel"><div class="head"><h3>آخر العمليات</h3><button class="btn ghost" onclick="nav('logs')">السجل</button></div>${D.logs.slice(0,6).map(l=>`<div style="padding:10px 0;border-bottom:1px solid #eee7dc"><b>${esc(l.action)}</b> — ${esc(l.detail)} <small class="muted">${esc(l.created_at)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div>`}
-function badge(s){let c=s==="متاحة"?"available":s==="قريبة من التوفر"?"near":s==="الحجز ينتهي قريباً"?"soon":s==="مؤجرة / محجوزة"?"reserved":"repair";return `<span class="status-square ${c}">${esc(s)}</span>`}
-function card(a){let photos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');let videos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة');let thumb=photos[0]?.filename?`<img src="/uploads/${encodeURIComponent(photos[0].filename)}" style="width:100%;height:150px;object-fit:cover;border-radius:12px;margin-bottom:10px" alt="صورة الشقة">`:'';return `<div class="card" data-apartment-id="${a.id}">${thumb}<h4>شقة ${esc(a.number)}</h4><div class="meta">${esc(a.area)}<br>${a.rooms} غرف • ${a.baths} حمام • ${a.size_m2||0} م²<br>${Number(a.rent||0).toLocaleString()} د.أ / شهر • طابق ${a.floor}<br>📷 ${photos.length} صورة ${videos.length?` • 🎥 ${videos.length} فيديو`:""}</div><div class="row">${badge(a.status)}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost" onclick="editA(${a.id})">تفاصيل</button></div></div></div>`}
+function home(){
+ let st=D.stats||{}, money=Number(D.money?.total||0).toLocaleString();
+ let apartments=(D.apartments||[]).slice(0,6);
+ return `<div class="lux-home">
+  <section class="lux-hero">
+   <div class="lux-hero-copy">
+    <span class="lux-kicker">عقارات غرب عمّان</span>
+    <h1>خيــارك الأفضل لحياة أرقى</h1>
+    <p>شقق • فلل • مكاتب • أراضي</p>
+    <button class="btn lux-gold" onclick="nav('apartments')">استكشف العقارات</button>
+   </div>
+  </section>
+  <section class="lux-trust">
+   <div><b>♛</b><span>تصميم فاخر<br><small>وسهولة استخدام</small></span></div>
+   <div><b>⌂</b><span>عقارات موثوقة<br><small>بأفضل الأسعار</small></span></div>
+   <div><b>⬟</b><span>عروض مميزة<br><small>ومحدثة باستمرار</small></span></div>
+   <div><b>⌖</b><span>جميع مناطق<br><small>عمان الغربية</small></span></div>
+  </section>
+  <section class="lux-search panel">
+   <div class="lux-search-row">
+    <div><label>نوع العقار</label><select><option>الكل</option><option>شقة</option><option>فيلا</option><option>مكتب</option><option>أرض</option></select></div>
+    <div><label>المنطقة</label><select><option>جميع المناطق</option></select></div>
+    <div><label>عدد الغرف</label><select><option>الكل</option><option>1</option><option>2</option><option>3</option><option>4+</option></select></div>
+    <div><label>عدد الحمامات</label><select><option>الكل</option><option>1</option><option>2</option><option>3+</option></select></div>
+    <button class="btn lux-gold lux-search-btn" onclick="nav('apartments')">بحث 🔎</button>
+   </div>
+   <button class="btn ghost lux-advanced" onclick="nav('apartments')">⌄ بحث متقدم</button>
+  </section>
+  <section class="lux-section">
+   <div class="lux-title"><span></span><h2>أحدث العقارات</h2><span></span></div>
+   <div class="lux-cards">${apartments.map(card).join("")||'<div class="empty">لا توجد عقارات مضافة بعد</div>'}</div>
+  </section>
+  <section class="lux-trust lux-bottom">
+   <div><b>🛡</b><span>أمان وخصوصية<br><small>لحماية بياناتك</small></span></div>
+   <div><b>♧</b><span>خدمة عملاء<br><small>على مدار الساعة</small></span></div>
+   <div><b>✦</b><span>عقارات مميزة<br><small>بأفضل الأسعار</small></span></div>
+   <div><b>✓</b><span>جميع العروض<br><small>موثقة ومعتمدة</small></span></div>
+  </section>
+  <footer class="lux-footer"><b>عقارات عمّان الغربية</b><span>© جميع الحقوق محفوظة</span><span>واتساب • Instagram • Facebook</span></footer>
+ </div>`;
+}
+function card(a){
+ let photos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');
+ let videos=D.documents.filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة');
+ let src=photos[0]?.filename?`/uploads/${encodeURIComponent(photos[0].filename)}`:"";
+ let img=src?`<div class="lux-card-photo"><img src="${src}" alt="صورة العقار"><span class="lux-photo-count">▣ ${photos.length}</span>${videos.length?`<span class="lux-video-count">▶ ${videos.length}</span>`:""}</div>`:`<div class="lux-card-photo lux-no-photo">عقارات غرب عمّان</div>`;
+ return `<article class="card lux-card" data-apartment-id="${a.id}">${img}<div class="lux-card-body"><div class="lux-status">${badge(a.status)}</div><h3>${esc(a.title||'شقة')} ${esc(a.number||'')}</h3><div class="lux-location">⌖ ${esc(a.area||'عمان الغربية')}</div><div class="lux-price">${Number(a.rent||0).toLocaleString()} د.أ <small>شهرياً</small></div><div class="lux-specs"><span>▧ ${a.size_m2||0}م²</span><span>▤ ${a.rooms||0} غرف</span><span>♨ ${a.baths||0} حمام</span></div><div class="lux-card-actions"><button class="btn lux-gold" onclick="editA(${a.id})">عرض التفاصيل</button><button class="btn lux-wa" onclick="shareWA(${a.id})">واتساب ☎</button></div></div></article>`;
+}
 function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':""}</div><div class="toolbar"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join("")}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join("")}</select><button class="btn ghost" onclick="location.href='/api/export/apartments.csv'">تصدير CSV</button></div><div class="notice" style="margin-top:10px">حالة الشقة تظهر الآن بمربع واضح بلون مميز: <span class="status-square available">متاحة</span> <span class="status-square reserved">مؤجرة / محجوزة</span> <span class="status-square repair">صيانة</span></div><div id="alist" class="cards" style="margin-top:16px"></div></div><div class="panel"><div class="head"><h3>مناطق غرب عمّان</h3><span class="muted">${D.areas.length} منطقة/حي</span></div><div class="cards">${D.areas.map(a=>`<div class="card"><b>${esc(a.name)}</b><div class="meta">منطقة متاحة للإسناد إلى الشقق</div></div>`).join("")}</div></div>`}
 function drawA(){let q=($("aq")?.value||"").toLowerCase(),ar=$("af")?.value||"",st=$("as")?.value||"";let x=D.apartments.filter(a=>(a.number+" "+a.area).toLowerCase().includes(q)&&(!ar||a.area===ar)&&(!st||a.status===st));$("alist").innerHTML=x.length?x.map(card).join(""):'<div class="empty">لا توجد نتائج</div>'}
 function aForm(a={}){return `<div class="formgrid"><div class="field"><label>رقم الشقة</label><input id="an" value="${esc(a.number)}"></div><div class="field"><label>المنطقة</label><select id="aa">${D.areas.map(x=>`<option value="${x.id}" ${(x.id===a.area_id||x.name===a.area)?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>الحالة</label><select id="ast">${statuses.map(s=>`<option ${s===a.status?"selected":""}>${s}</option>`).join("")}</select></div><div class="field"><label>الإيجار الشهري (د.أ)</label><input id="ar" type="number" value="${a.rent||0}"></div><div class="field"><label>المساحة (م²)</label><input id="az" type="number" value="${a.size_m2||0}"></div><div class="field"><label>الغرف</label><input id="ro" type="number" value="${a.rooms||2}"></div><div class="field"><label>الحمامات</label><input id="ba" type="number" value="${a.baths||1}"></div><div class="field"><label>الطابق</label><input id="fl" type="number" value="${a.floor||1}"></div><div class="field full"><label>ملاحظات</label><textarea id="no">${esc(a.notes)}</textarea></div></div>`}
@@ -65,9 +126,6 @@ async function shareMediaFiles(id, kind){
     alert("تعذر مشاركة الوسائط. تأكد من السماح للمتصفح بالمشاركة ثم جرّب مرة أخرى.");
   }
 }
-async function shareApartmentPhotos(id){return shareMediaFiles(id,"صورة شقة")}
-async function shareApartmentVideo(id){return shareMediaFiles(id,"فيديو شقة")}
-
 function detailsLinesForApartment(a){
   return [
     `الكود: ${a.number||"—"}`,
@@ -80,73 +138,6 @@ function detailsLinesForApartment(a){
     `موعد التوفر: ${a.availability_date||"غير محدد"}`,
     `الملاحظات: ${a.notes||"—"}`
   ];
-}
-
-async function shareApartmentDetails(id){
-  try{
-    if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
-    const a=D.apartments.find(x=>x.id===id);
-    if(!a) throw Error("الشقة غير موجودة");
-
-    const lines=detailsLinesForApartment(a);
-    const width=1200, pad=70, lineH=62, headerH=135;
-    const height=headerH + 80 + lines.length*lineH + 70;
-    const canvas=document.createElement("canvas");
-    canvas.width=width; canvas.height=height;
-    const c=canvas.getContext("2d");
-    c.fillStyle="#f7f3e9"; c.fillRect(0,0,width,height);
-
-    // Header.
-    c.fillStyle="#102f3b";
-    c.roundRect(35,35,width-70,headerH-20,24); c.fill();
-    c.fillStyle="#d7b35a";
-    c.font="700 30px sans-serif"; c.textAlign="right"; c.direction="rtl";
-    c.fillText("تفاصيل الشقة",width-pad,82);
-    c.fillStyle="#fff";
-    c.font="700 38px sans-serif";
-    c.fillText(`شقة ${a.number||""}`,width-pad,128);
-
-    // Details box.
-    const boxY=headerH+45;
-    c.fillStyle="#fff";
-    c.roundRect(35,boxY,width-70,lines.length*lineH+45,20); c.fill();
-    c.strokeStyle="#d8caa3"; c.lineWidth=2; c.stroke();
-
-    c.fillStyle="#253238";
-    c.font="500 28px sans-serif";
-    c.textAlign="right"; c.direction="rtl";
-    const statusColor = a.status==="متاحة" ? "#1b8f5a" : (a.status==="صيانة" ? "#c62828" : "#b8953f");
-    c.fillStyle=statusColor;
-    c.roundRect(75,boxY+22,260,48,18); c.fill();
-    c.fillStyle="#fff"; c.font="700 24px sans-serif"; c.textAlign="center";
-    c.fillText(a.status||"غير محدد",205,boxY+55);
-    c.fillStyle="#253238"; c.font="500 28px sans-serif"; c.textAlign="right"; c.direction="rtl";
-    lines.forEach((line,i)=>{
-      const y=boxY+55+i*lineH;
-      c.fillText(line,width-pad,y);
-    });
-
-    // Footer.
-    c.fillStyle="#6c6558"; c.font="500 22px sans-serif";
-    c.fillText("إدارة عقارات غرب عمّان",width-pad,height-28);
-
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png",1));
-    if(!blob) throw Error("تعذر إنشاء الصورة");
-    const file=new File([blob],`تفاصيل-الشقة-${a.number||id}.png`,{type:"image/png"});
-
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({title:`تفاصيل شقة ${a.number||""}`,files:[file]});
-    }else{
-      const u=URL.createObjectURL(file);
-      const aEl=document.createElement("a"); aEl.href=u; aEl.download=file.name; aEl.click();
-      setTimeout(()=>URL.revokeObjectURL(u),1000);
-      alert("تم إنشاء صورة التفاصيل. شارك الصورة من معرض الهاتف.");
-    }
-  }catch(e){
-    if(e?.name==="AbortError") return;
-    console.error(e);
-    alert("تعذر إنشاء صورة التفاصيل.");
-  }
 }
 
 function openMiniVideo(id){
@@ -168,55 +159,7 @@ function openMiniVideo(id){
   box.onclick=e=>{if(e.target===box){v.pause();box.remove()}};
 }
 
-function openApartmentGallery(apartmentId,index){
-  const photos=D.documents.filter(d=>d.apartment_id===apartmentId&&d.kind==="صورة شقة");
-  if(!photos.length)return;
-  let i=Math.max(0,Math.min(index||0,photos.length-1));
-  const box=document.createElement("div");
-  box.className="v55-gallery";
-  box.innerHTML=`
-    <div class="v55-gallery-box">
-      <button class="v55-gallery-close" aria-label="إغلاق">×</button>
-      <button class="v55-gallery-prev" aria-label="الصورة السابقة">›</button>
-      <img class="v55-gallery-img" alt="صورة الشقة">
-      <button class="v55-gallery-next" aria-label="الصورة التالية">‹</button>
-      <div class="v55-gallery-count"></div>
-    </div>`;
-  document.body.appendChild(box);
-  const img=box.querySelector(".v55-gallery-img");
-  const count=box.querySelector(".v55-gallery-count");
-  const render=()=>{
-    const p=photos[i];
-    img.src="/uploads/"+encodeURIComponent(p.filename);
-    img.alt=p.original_name||"صورة الشقة";
-    count.textContent=`${i+1} / ${photos.length}`;
-  };
-  const next=()=>{i=(i+1)%photos.length;render()};
-  const prev=()=>{i=(i-1+photos.length)%photos.length;render()};
-  box.querySelector(".v55-gallery-close").onclick=()=>box.remove();
-  box.querySelector(".v55-gallery-next").onclick=next;
-  box.querySelector(".v55-gallery-prev").onclick=prev;
-  box.onclick=e=>{if(e.target===box)box.remove()};
-  document.addEventListener("keydown",function handler(e){
-    if(!document.body.contains(box)){document.removeEventListener("keydown",handler);return}
-    if(e.key==="Escape"){box.remove();document.removeEventListener("keydown",handler)}
-    if(e.key==="ArrowLeft")next();
-    if(e.key==="ArrowRight")prev();
-  });
-  let sx=null;
-  img.addEventListener("touchstart",e=>{sx=e.touches[0].clientX},{passive:true});
-  img.addEventListener("touchend",e=>{
-    if(sx===null)return;
-    const dx=e.changedTouches[0].clientX-sx;
-    if(Math.abs(dx)>40)(dx<0?next:prev)();
-    sx=null;
-  },{passive:true});
-  render();
-}
-
-async function uploadApartmentPhotos(id){try{let input=$("apPhotos");if(!input.files.length)return;let fd=new FormData();[...input.files].forEach(f=>fd.append("photos",f));let r=await fetch("/api/apartments/"+id+"/photos",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الصور");alert("تم رفع الصور بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
 async function uploadApartmentVideo(id){try{let input=$("apVideo");if(!input.files.length)return;let fd=new FormData();fd.append("video",input.files[0]);let r=await fetch("/api/apartments/"+id+"/video",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل رفع الفيديو");alert("تم رفع الفيديو بنجاح");await load();editA(id)}catch(e){alert(e.message)}}
-async function deletePhoto(id){if(!confirm("حذف هذه الصورة؟"))return;try{let d=D.documents.find(x=>x.id===id);await api("/api/documents/"+id,{method:"DELETE"});await load();if(d)editA(d.apartment_id);else closeM();}catch(e){alert(e.message)}}
 async function deleteVideo(id,apartmentId){if(!confirm("حذف فيديو الشقة؟"))return;try{await api("/api/documents/"+id,{method:"DELETE"});await load();editA(apartmentId)}catch(e){alert(e.message)}}
 
 async function shareFilesForApartment(id, kind){
@@ -414,6 +357,6 @@ function modal(x){
 function closeM(){$("modal").classList.remove("show");document.body.style.overflow=""}
 function logout(){localStorage.clear();token=null;me=null;login()}
 function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
-window.addEventListener("load",()=>{if(page==="users")loadUsersProfiles()});
+window.addEventListener("load",()=>{});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
-load();
+login();

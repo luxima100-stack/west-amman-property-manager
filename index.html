@@ -635,8 +635,19 @@ body{background:#08101a!important;color:#f8f3e7!important}
 .v541-eye{position:absolute!important;left:6px!important;top:50%!important;transform:translateY(-50%)!important;width:42px!important;height:42px!important;padding:0!important;border-radius:9px!important;background:#e8cf86!important;color:#000!important;border:1px solid #b8953f!important;font-size:19px!important;z-index:5!important}
 </style>
 
+
+<style id="v544-login-visible">
+.login{min-height:100vh!important;display:flex!important;align-items:center!important;justify-content:center!important;background:linear-gradient(145deg,#07101b,#152234)!important;padding:20px!important;box-sizing:border-box}
+.loginbox{width:min(430px,92vw)!important;background:#fff!important;color:#111!important;border-radius:20px!important;padding:26px!important;box-shadow:0 16px 45px rgba(0,0,0,.35)!important}
+.loginbox h1{color:#111!important;font-size:28px!important;text-align:center!important}
+.loginbox .muted{color:#555!important}
+.loginbox .field label{color:#222!important}
+.loginbox input{background:#fff!important;color:#111!important;border:1px solid #cfc7b7!important}
+.demo{background:#faf5e8!important;color:#4b3b1a!important;border:1px solid #dfcc94!important;border-radius:10px!important;padding:10px!important;margin:12px 0!important;line-height:1.7!important}
+</style>
+
 </head>
-<body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
+<body><div id="root"><div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">جارٍ تشغيل النظام...</p></div></div></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
 let token=localStorage.getItem("wa_token"),me=null,D=null,page="home",search="";
 try{me=JSON.parse(localStorage.getItem("wa_me")||"null")}catch(e){localStorage.removeItem("wa_me");localStorage.removeItem("wa_token");token=null;me=null}
@@ -996,9 +1007,9 @@ function modal(x){
 function closeM(){$("modal").classList.remove("show");document.body.style.overflow=""}
 function logout(){localStorage.clear();token=null;me=null;login()}
 function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
-window.addEventListener("load",()=>{if(page==="users")loadUsersProfiles()});
+window.addEventListener("load",()=>{});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
-load();
+login();
 </script>
 
 
@@ -1299,21 +1310,16 @@ function homeAccessControl(){
 
 <script id="v542-startup-guard">
 window.addEventListener("DOMContentLoaded",function(){
-  setTimeout(function(){
-    try{
-      const root=document.getElementById("root");
-      if(!root)return;
-      if(!root.innerHTML.trim()){
-        if(typeof login==="function") login();
-        else root.innerHTML='<div style="padding:40px;text-align:center;font-size:20px">تعذر تشغيل الواجهة. يرجى تحديث الصفحة.</div>';
-      }
-    }catch(e){
-      const root=document.getElementById("root");
-      if(root)root.innerHTML='<div style="padding:40px;text-align:center;font-size:20px">تعذر تشغيل الواجهة. يرجى تحديث الصفحة.</div>';
-    }
-  },300);
-});
-</script>
+  try{
+    localStorage.removeItem("wa_token");
+    localStorage.removeItem("wa_me");
+    token=null; me=null;
+    if(typeof login==="function") login();
+  }catch(e){
+    const root=document.getElementById("root");
+    if(root) root.innerHTML='<div class="login"><div class="loginbox"><h1>إدارة عقارات غرب عمّان</h1><p>يرجى إعادة تحميل الصفحة.</p></div></div>';
+  }
+});</script>
 
 </body>
 </html>
