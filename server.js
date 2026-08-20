@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS tenants(
  monthly_rent REAL DEFAULT 0,
  deposit REAL DEFAULT 0,
  notes TEXT DEFAULT '',
+ renewal_enabled INTEGER NOT NULL DEFAULT 1,
  FOREIGN KEY(apartment_id) REFERENCES apartments(id) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS payments(
@@ -191,6 +192,10 @@ for (const [field, type] of [
   try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch (e) {}
 }
 
+
+// v5.11 tenant renewal toggle.
+try { db.prepare(`ALTER TABLE tenants ADD COLUMN renewal_enabled INTEGER NOT NULL DEFAULT 1`).run(); } catch (e) {}
+
 // v5.8: ensure every apartment has a visible internal code.
 db.prepare("UPDATE apartments SET code=number WHERE COALESCE(code,'')='' OR code IS NULL").run();
 
@@ -292,16 +297,16 @@ app.delete("/api/apartments/:id",auth,(req,res)=>{
 
 app.post("/api/tenants",auth,(req,res)=>{
  if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
- const x=req.body;
- db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,notes)
- VALUES(?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"");
- log("إضافة مستأجر",`تمت إضافة المستأجر ${x.name}`,req.user.username);res.json({ok:true});
+ const x=req.body||{};
+ const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,notes,renewal_enabled)
+ VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1);
+ log("إضافة مستأجر",`تمت إضافة المستأجر ${x.name}`,req.user.username);res.json({ok:true,id:r.lastInsertRowid});
 });
 app.put("/api/tenants/:id",auth,(req,res)=>{
  if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
- const x=req.body;
- db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,notes=? WHERE id=?`)
- .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",req.params.id);
+ const x=req.body||{};
+ db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,notes=?,renewal_enabled=? WHERE id=?`)
+ .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
  log("تعديل مستأجر",`تم تعديل المستأجر ${x.name}`,req.user.username);res.json({ok:true});
 });
 

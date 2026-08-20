@@ -1,4 +1,4 @@
-const CACHE='west-amman-v5-10';
+const CACHE='west-amman-v5-11';
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{
