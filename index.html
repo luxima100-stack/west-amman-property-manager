@@ -1487,63 +1487,74 @@ function shell(){
 
 function home(){
   const s=D?.stats||{};
-  const total=Number(s.total||0), rented=Number(s.rented||0), available=Number(s.available||0);
-  const soon=Number(s.soon||0), money=Number(D?.money?.total||0);
+  const total=Number(s.total||0), rented=Number(s.rented||0), available=Number(s.available||0), soon=Number(s.soon||0);
   const latest=(D?.apartments||[]).slice(0,6);
-  return `
-  <section class="lux-hero" aria-label="واجهة عقارات عمان الغربية">
-    <div class="lux-hero-bg"></div>
-    <div class="lux-hero-overlay"></div>
-    <div class="lux-hero-content">
-      <div class="lux-hero-copy">
-        <h1>عقارات عمان الغربية</h1>
-        <h2>خيارك الأفضل .. لحياة أرقى</h2>
-        <div class="lux-gold-line"></div>
-        <div class="lux-types"><span>شقق</span><i>|</i><span>فلل</span></div>
+  const areas=(D?.areas||[]).slice(0,4);
+  const photosFor=a=>(D?.documents||[]).filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');
+  const videosFor=a=>(D?.documents||[]).filter(d=>d.apartment_id===a.id&&d.kind==='فيديو شقة');
+  const cardHtml=a=>{
+    const photos=photosFor(a), videos=videosFor(a), p=photos[0];
+    const price=Number(v511Price(a,a.rental_type||'شهري')).toLocaleString();
+    return `<article class="ref-property-card">
+      <div class="ref-card-media" onclick="editA(${a.id})">
+        ${p?`<img src="/uploads/${encodeURIComponent(p.filename)}" alt="شقة ${esc(a.number)}">`:`<div class="ref-card-empty">⌂</div>`}
+        <div class="ref-status">${badge(a.status)}</div>
+        <button class="ref-favorite" type="button" onclick="event.stopPropagation();this.classList.toggle('active')" aria-label="المفضلة">♡</button>
+        <div class="ref-media-counts">
+          ${photos.length?`<span>▣ ${photos.length}</span>`:''}
+          ${videos.length?`<span>▶ ${videos.length}</span>`:''}
+        </div>
       </div>
-    </div>
-  </section>
-  <section class="lux-stats">
-    <div class="lux-stat"><div class="lux-stat-icon">▥</div><div><b>${total.toLocaleString()}</b><span>إجمالي الشقق</span></div></div>
-    <div class="lux-stat"><div class="lux-stat-icon">🔑</div><div><b>${rented.toLocaleString()}</b><span>المؤجرة / المحجوزة</span></div></div>
-    <div class="lux-stat"><div class="lux-stat-icon">⌂</div><div><b>${available.toLocaleString()}</b><span>الشقق المتاحة</span></div></div>
-    <div class="lux-stat lux-stat-alert" onclick="luxNav('apartments')"><div class="lux-stat-icon">🔔</div><div><b>${soon.toLocaleString()}</b><span>قريبة من التوفر</span></div></div>
-    <div class="lux-stat"><div class="lux-stat-icon">د.أ</div><div><b>${money.toLocaleString()}</b><span>دفعات هذا الشهر</span></div></div>
-  </section>
-  ${soon>0?`<button class="lux-alert-strip" onclick="luxNav('apartments')"><span>🔴</span><b>${soon} شقة ستصبح متاحة قريباً</b></button>`:''}
-  <section class="lux-quick">
-    <div class="lux-section-head"><div><small>إدارة سريعة</small><h3>الوصول السريع</h3></div><button class="lux-outline-btn" onclick="luxNav('apartments')">عرض جميع الشقق</button></div>
-    <div class="lux-quick-grid">
-      <button onclick="luxNav('apartments')"><span>⌂</span><b>الشقق والعقارات</b><small>إضافة، تعديل، صور وتفاصيل</small></button>
-      <button onclick="luxNav('tenants')"><span>♙</span><b>المستأجرون والعقود</b><small>متابعة العقود والحجوزات</small></button>
-      <button onclick="luxNav('finance')"><span>د.أ</span><b>الدفعات والمالية</b><small>متابعة الدفعات الشهرية</small></button>
-    </div>
-  </section>
-  <section class="lux-latest">
-    <div class="lux-section-head"><div><small>آخر الإضافات</small><h3>أحدث الشقق</h3></div></div>
-    <div class="lux-latest-grid">
-      ${latest.length?latest.map(a=>`
-        <div class="lux-property">
-          <div onclick="editA(${a.id})" style="cursor:pointer">
-          ${(()=>{const p=(D.documents||[]).find(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');return p?`<img src="/uploads/${encodeURIComponent(p.filename)}" alt="شقة ${esc(a.number)}">`:`<div class="lux-property-empty">⌂</div>`})()}
-          </div>
-          <div class="lux-prop-body">
-            <b>🏠 شقة ${esc(a.number)}</b>
-            <small>📍 ${esc(a.area||'غير محدد')}</small>
-            <div class="lux-prop-meta"><span>🛏️ ${a.rooms||0} غرف</span><span>🛁 ${a.baths||0} حمامات</span><span>🛋️ ${a.salons||a.living_rooms||0} صالات</span><span>🌿 ${a.balconies||0} بلكونات</span><span>📐 ${a.size_m2||0} م²</span><span>🏢 طابق ${a.floor||0}</span></div>
-            ${me?.role==='owner'?`<div class="lux-prop-price">💰 ${Number(v511Price(a,a.rental_type||'شهري')).toLocaleString()} د.أ / ${esc(a.rental_type||'شهري')}</div>`:''}
-            <div class="lux-prop-count">📷 ${(D.documents||[]).filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة').length} صور</div>
-          </div>
-          <div class="lux-prop-status">${badge(a.status)}</div>
-          <div class="lux-prop-actions">
-            <button class="btn ghost" type="button" onclick="editA(${a.id})">🔎 التفاصيل</button>
-            ${me?.role==='owner'?`<button class="v55-share-btn v55-share-details" type="button" onclick="shareApartmentDetails(${a.id})">📝 إرسال التفاصيل</button><button class="v55-share-btn v55-share-photos" type="button" onclick="shareApartmentPhotos(${a.id})">🖼️ إرسال الصور</button>`:''}
-          </div>
-        </div>`).join(''):'<div class="empty">لا توجد شقق مضافة بعد</div>'}
-    </div>
-  </section>`;
-}
+      <div class="ref-card-body">
+        <h3>${esc(a.rental_type==='فيلا'?'فيلا فاخرة':'شقة')} ${esc(a.number)}</h3>
+        <div class="ref-location">⌖ ${esc(a.area||'عمان الغربية')}</div>
+        <div class="ref-price">${me?.role==='owner'?`${price} د.أ <small>/ ${esc(a.rental_type||'شهري')}</small>`:'السعر متاح للمالك فقط'}</div>
+        <div class="ref-meta">
+          <span>▧ ${a.size_m2||0}م²</span><span>🛏 ${a.rooms||0} غرف</span><span>♨ ${a.baths||0} حمام</span>
+        </div>
+        <div class="ref-actions">
+          <button class="ref-details" type="button" onclick="editA(${a.id})">عرض التفاصيل</button>
+          ${me?.role==='owner'?`<button class="ref-wa" type="button" onclick="shareApartmentDetails(${a.id})">◉ واتساب</button>`:''}
+        </div>
+      </div>
+    </article>`;
+  };
+  return `
+  <div class="ref-home">
+    <section class="ref-hero">
+      <div class="ref-hero-bg"></div>
+      <div class="ref-hero-shade"></div>
+      <div class="ref-top-nav">
+        <button class="ref-login" type="button" onclick="luxNav('security')">تسجيل الدخول <span>●</span></button>
+        <button class="ref-menu" type="button" onclick="toggleLuxMenu()">☰</button>
+      </div>
+      <div class="ref-brand">
+        <img src="/hero-realestate.svg" alt="عقارات عمان الغربية">
+      </div>
+    </section>
 
+    <section class="ref-search">
+      <div class="ref-search-field"><label>نوع العقار</label><button onclick="luxNav('apartments')">⌂ <span>الكل</span>⌄</button></div>
+      <div class="ref-search-field"><label>المنطقة</label><button onclick="luxNav('apartments')">⌖ <span>جميع المناطق</span>⌄</button></div>
+      <div class="ref-search-field"><label>عدد الغرف</label><button onclick="luxNav('apartments')">▱ <span>الكل</span>⌄</button></div>
+      <div class="ref-search-field"><label>عدد الحمامات</label><button onclick="luxNav('apartments')">♨ <span>الكل</span>⌄</button></div>
+      <button class="ref-search-btn" onclick="luxNav('apartments')">بحث <span>⌕</span></button>
+      <button class="ref-advanced" onclick="luxNav('apartments')">⌄ &nbsp; بحث متقدم</button>
+    </section>
+
+    <section class="ref-latest">
+      <div class="ref-section-title"><span></span><h2>أحدث العقارات</h2><span></span></div>
+      ${soon>0?`<button class="ref-alert" onclick="luxNav('apartments')">🔴 ${soon} شقة ستصبح متاحة قريباً</button>`:''}
+      <div class="ref-cards">${latest.length?latest.map(cardHtml).join(''):'<div class="empty">لا توجد شقق مضافة بعد</div>'}</div>
+    </section>
+
+    <section class="ref-bottom-stats">
+      <div><b>${total.toLocaleString()}</b><span>إجمالي العقارات</span></div>
+      <div><b>${available.toLocaleString()}</b><span>متاحة الآن</span></div>
+      <div><b>${rented.toLocaleString()}</b><span>مؤجرة / محجوزة</span></div>
+    </section>
+  </div>`;
+}
 </script>
 
 
@@ -1650,6 +1661,12 @@ html,body{min-width:0;overflow-x:hidden}.content{width:100%}.panel,.card,.stat{m
 })();
 </script>
 <div id="location-feature-disabled" hidden></div>
+<style id="v548-exact-reference-final">
+.ref-top-nav{justify-content:space-between!important}
+.ref-top-nav nav,.ref-hero-copy,.ref-features,.ref-areas{display:none!important}
+.ref-hero{min-height:520px!important}
+@media(max-width:600px){.ref-hero{min-height:390px!important}}
+</style>
 </body>
 </html>
 <style id="v5-46-4-card-final">
@@ -1666,4 +1683,56 @@ html,body{min-width:0;overflow-x:hidden}.content{width:100%}.panel,.card,.stat{m
 .lux-prop-actions .btn,.lux-prop-actions .v55-share-btn{font-size:11px!important;padding:6px 7px!important;min-height:31px!important;flex:1 1 0!important;white-space:nowrap!important;box-shadow:0 2px 5px rgba(20,16,10,.08)!important}
 @media(max-width:600px){
  .lux-property b{font-size:15px!important}.lux-property small{font-size:11px!important}.lux-property .lux-prop-meta{font-size:10.5px!important;gap:3px 5px!important}.lux-prop-price{font-size:13px!important}.lux-prop-count{font-size:10px}.lux-prop-status .status-square{font-size:10px!important;padding:4px 5px!important}.lux-prop-actions{gap:4px!important;padding:4px 7px 8px!important}.lux-prop-actions .btn,.lux-prop-actions .v55-share-btn{font-size:9px!important;padding:5px 5px!important;min-height:28px!important}}
+</style>
+
+
+<style id="v5-47-reference-home">
+/* Reference home: keeps /luxury-home-hero.jpg and only changes the presentation around it. */
+.ref-home{margin:-18px clamp(-50px,-4vw,-14px) -35px;min-height:100vh;background:#f5f1e8;color:#171b20}
+.ref-hero{position:relative;min-height:690px;overflow:hidden;background:#080e16}
+.ref-hero-bg{position:absolute;inset:0;background-image:url('/luxury-home-hero.jpg');background-size:cover;background-position:center}
+.ref-hero-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,8,13,.72) 0%,rgba(5,8,13,.22) 25%,rgba(5,8,13,.18) 56%,rgba(5,8,13,.82) 100%)}
+.ref-top-nav{position:absolute;z-index:4;top:0;left:0;right:0;height:82px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 clamp(18px,4vw,46px);background:linear-gradient(180deg,rgba(5,8,13,.68),transparent)}
+.ref-top-nav nav{display:flex;gap:34px;direction:rtl}
+.ref-top-nav nav button,.ref-menu{border:0;background:transparent;color:#fff;font-weight:800;font-size:16px;padding:10px 4px;cursor:pointer}
+.ref-top-nav nav button.active{color:#f2ce7c;border-bottom:3px solid #e4b84f}
+.ref-menu{justify-self:end;font-size:31px!important;line-height:1;color:#fff!important}
+.ref-login{justify-self:start;border:0;border-radius:28px;padding:12px 22px;background:linear-gradient(145deg,#e2bd61,#c18d2f);color:#fff;font-weight:900;font-size:15px;box-shadow:0 7px 18px #0005;cursor:pointer}
+.ref-login span{margin-right:7px}
+.ref-brand{position:absolute;z-index:4;right:3%;top:15px;width:170px}
+.ref-brand img{width:100%;height:auto;display:block}
+.ref-hero-copy{position:relative;z-index:3;padding-top:175px;margin-right:42%;text-align:right;color:#fff}
+.ref-hero-copy h1{font-size:clamp(38px,5vw,68px);line-height:1.12;margin:0;color:#f3ce7b;font-weight:900;text-shadow:0 4px 18px #0008}
+.ref-hero-copy h2{font-size:clamp(22px,3vw,34px);margin:15px 0 4px;color:#f5e2af;font-weight:900}
+.ref-gold-rule{height:5px;width:165px;margin:10px 0 12px;background:linear-gradient(90deg,#f4cf76,#a97928);border-radius:9px}
+.ref-hero-copy p{font-size:22px;font-weight:800;margin:0;color:#fff}
+.ref-hero-copy p b{color:#f0c96c;margin:0 7px}
+.ref-features{position:absolute;z-index:4;bottom:18px;left:1.3%;right:1.3%;min-height:94px;border:1px solid #ffffff40;border-radius:48px;background:rgba(11,13,18,.78);backdrop-filter:blur(10px);display:grid;grid-template-columns:repeat(4,1fr);align-items:center;padding:10px 25px;box-shadow:0 18px 35px #0007}
+.ref-features>div{display:grid;grid-template-columns:52px 1fr;grid-template-rows:auto auto;align-items:center;padding:0 18px;border-left:1px solid #ffffff2e;color:#fff;text-align:right}
+.ref-features>div:first-child{border-left:0}
+.ref-features span{grid-row:1/3;color:#f3d17c;font-size:37px;text-align:center}
+.ref-features b{font-size:17px}.ref-features small{font-size:13px;color:#eee;opacity:.9}
+.ref-search{position:relative;z-index:5;margin:-1px auto 0;width:min(94%,1180px);background:#fff;border-radius:18px;box-shadow:0 12px 35px #0002;display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.05fr;gap:10px;padding:18px 20px 48px;direction:rtl}
+.ref-search-field{min-width:0}.ref-search-field label{display:block;font-weight:900;font-size:14px;margin:0 0 6px;text-align:right}.ref-search-field button{width:100%;height:48px;background:#fff;border:1px solid #d8dce1;border-radius:11px;color:#1e2731;font-weight:800;text-align:right;padding:0 14px;cursor:pointer}.ref-search-field button span{margin:0 8px}.ref-search-btn{height:48px;margin-top:25px;border:0;border-radius:11px;background:linear-gradient(145deg,#e4bb5b,#c08b2c);color:#111;font-size:18px;font-weight:900;box-shadow:0 5px 0 #9c6c1d;cursor:pointer}.ref-search-btn span{font-size:27px;vertical-align:-2px;margin-right:6px}.ref-advanced{position:absolute;bottom:9px;right:50%;transform:translateX(50%);border:0;background:transparent;color:#1d2732;font-weight:900;cursor:pointer}
+.ref-latest{padding:38px clamp(15px,4vw,55px) 28px;background:linear-gradient(180deg,#eef0f2,#f7f3ec)}
+.ref-section-title{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:18px}.ref-section-title span{height:2px;width:min(130px,12vw);background:linear-gradient(90deg,transparent,#c18b2e)}.ref-section-title span:last-child{background:linear-gradient(90deg,#c18b2e,transparent)}.ref-section-title h2{margin:0;font-size:29px;font-weight:900;color:#171b20}
+.ref-alert{display:block;margin:0 auto 16px;border:0;border-radius:12px;padding:10px 18px;background:#b9252e;color:#fff;font-weight:900;cursor:pointer}
+.ref-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;max-width:1200px;margin:auto}
+.ref-property-card{background:#fff;border:1px solid #e2e5e9;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(23,28,34,.14);transition:transform .16s ease,box-shadow .16s ease}
+.ref-property-card:hover{transform:translateY(-3px);box-shadow:0 15px 30px rgba(23,28,34,.18)}
+.ref-card-media{position:relative;height:210px;background:#111923;cursor:pointer;overflow:hidden}
+.ref-card-media>img{width:100%;height:100%;object-fit:cover;display:block}
+.ref-card-empty{height:100%;display:grid;place-items:center;color:#e8c66e;font-size:60px}
+.ref-status{position:absolute;top:12px;left:12px;z-index:2}.ref-status .status-square{border:0!important;border-radius:20px!important;padding:6px 13px!important;font-size:12px!important;box-shadow:0 4px 10px #0003}
+.ref-favorite{position:absolute;top:10px;right:10px;width:38px;height:38px;border:1px solid #ffffff88;border-radius:50%;background:#111a22cc;color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.ref-favorite.active{background:#d5a33f;color:#111}
+.ref-media-counts{position:absolute;bottom:10px;left:10px;display:flex;gap:6px}.ref-media-counts span{background:#10161ccc;color:#fff;border-radius:15px;padding:5px 9px;font-size:12px;font-weight:900}
+.ref-card-body{padding:14px 16px 16px;text-align:right}.ref-card-body h3{margin:0 0 5px;font-size:19px;color:#14191f;font-weight:900}.ref-location{font-size:13px;color:#505a64;margin-bottom:7px}.ref-price{font-size:22px;color:#d08e1f;font-weight:900;margin-bottom:9px}.ref-price small{font-size:13px;color:#6e5b35}.ref-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border-top:1px solid #edf0f2;border-bottom:1px solid #edf0f2;padding:8px 0;color:#36414a;font-size:12px;font-weight:800}.ref-meta span{text-align:center}.ref-actions{display:flex;gap:8px;margin-top:11px}.ref-actions button{flex:1;border:0;border-radius:9px;padding:9px 7px;font-weight:900;cursor:pointer}.ref-details{background:linear-gradient(145deg,#e3bd61,#c08b2e);color:#17130c}.ref-wa{background:linear-gradient(145deg,#35d36f,#0b8f45);color:#fff}
+.ref-areas{padding:35px clamp(15px,4vw,55px);background:#fff}.ref-area-head{max-width:1200px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:15px}.ref-area-head h2{margin:0;font-size:25px}.ref-area-head h2 span{color:#d92732}.ref-area-head button{border:0;border-radius:20px;padding:10px 18px;background:linear-gradient(145deg,#d6a84d,#b57e22);color:#fff;font-weight:900;cursor:pointer}.ref-area-grid{max-width:1200px;margin:18px auto 0;display:grid;grid-template-columns:repeat(4,1fr);gap:13px}.ref-area{height:130px;border:0;border-radius:15px;background:linear-gradient(180deg,#22313a,#111920);position:relative;overflow:hidden;cursor:pointer;box-shadow:0 8px 18px #0002}.ref-area:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#ffffff12,#000b),url('/luxury-home-hero.jpg') center/cover;filter:saturate(.8)}
+.ref-area span{position:absolute;z-index:1;bottom:10px;right:14px;color:#fff;font-size:18px;font-weight:900;text-shadow:0 2px 8px #000}
+.ref-bottom-stats{background:#080e16;color:#fff;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;padding:25px clamp(20px,7vw,90px);text-align:center}.ref-bottom-stats div{padding:8px;border-left:1px solid #ffffff1c}.ref-bottom-stats div:last-child{border-left:0}.ref-bottom-stats b{display:block;color:#f1cd78;font-size:28px}.ref-bottom-stats span{font-size:12px;color:#c7cdd2}
+@media(max-width:900px){.ref-hero{min-height:620px}.ref-hero-copy{margin-right:30%;padding-top:160px}.ref-features{border-radius:24px;grid-template-columns:repeat(2,1fr);min-height:125px}.ref-features>div:nth-child(3){border-left:0}.ref-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.ref-area-grid{grid-template-columns:repeat(2,1fr)}.ref-search{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){
+  .ref-home{margin:-12px -12px -28px}.ref-hero{min-height:575px}.ref-top-nav{height:66px;padding:0 10px;grid-template-columns:1fr auto 1fr}.ref-top-nav nav{gap:13px}.ref-top-nav nav button{font-size:12px}.ref-login{font-size:11px;padding:9px 12px}.ref-menu{font-size:27px!important}.ref-brand{right:3%;top:8px;width:105px}.ref-hero-copy{margin-right:4%;padding:135px 14px 0;text-align:right}.ref-hero-copy h1{font-size:37px}.ref-hero-copy h2{font-size:21px}.ref-hero-copy p{font-size:16px}.ref-gold-rule{width:120px}.ref-features{left:3%;right:3%;bottom:10px;padding:8px 6px;border-radius:23px;min-height:112px}.ref-features>div{grid-template-columns:32px 1fr;padding:0 7px}.ref-features span{font-size:25px}.ref-features b{font-size:12px}.ref-features small{font-size:9px}.ref-search{width:94%;grid-template-columns:1fr 1fr;padding:13px 11px 46px;border-radius:14px}.ref-search-field label{font-size:11px}.ref-search-field button{height:43px;font-size:12px}.ref-search-btn{height:43px;margin-top:23px;font-size:15px}.ref-latest{padding:25px 10px}.ref-section-title h2{font-size:22px}.ref-section-title span{width:55px}.ref-cards{grid-template-columns:1fr;gap:16px}.ref-card-media{height:220px}.ref-card-body h3{font-size:18px}.ref-price{font-size:20px}.ref-areas{padding:26px 12px}.ref-area-head{align-items:flex-start;flex-direction:column}.ref-area-head h2{font-size:20px}.ref-area-grid{grid-template-columns:1fr 1fr;gap:9px}.ref-area{height:105px}.ref-area span{font-size:15px}.ref-bottom-stats{grid-template-columns:1fr 1fr 1fr;padding:18px 6px}.ref-bottom-stats b{font-size:20px}.ref-bottom-stats span{font-size:9px}
+}
 </style>
