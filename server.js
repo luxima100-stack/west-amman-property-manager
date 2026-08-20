@@ -99,19 +99,6 @@ CREATE TABLE IF NOT EXISTS user_permissions(
  PRIMARY KEY(user_id, permission),
  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS tasks(
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- title TEXT NOT NULL,
- description TEXT DEFAULT '',
- assigned_to INTEGER,
- due_date TEXT,
- status TEXT NOT NULL DEFAULT 'معلقة',
- created_by INTEGER,
- created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
- completed_at TEXT,
- FOREIGN KEY(assigned_to) REFERENCES users(id) ON DELETE SET NULL,
- FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
-);
 CREATE TABLE IF NOT EXISTS areas(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  name TEXT UNIQUE NOT NULL
@@ -184,21 +171,6 @@ CREATE TABLE IF NOT EXISTS messages(
  read_at TEXT,
  FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
 );
-CREATE TABLE IF NOT EXISTS accounting_entries(
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- apartment_id INTEGER,
- tenant_id INTEGER,
- type TEXT NOT NULL CHECK(type IN ('income','expense','deposit')),
- category TEXT NOT NULL DEFAULT 'أخرى',
- amount REAL NOT NULL DEFAULT 0,
- entry_date TEXT NOT NULL,
- description TEXT DEFAULT '',
- created_by INTEGER,
- created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY(apartment_id) REFERENCES apartments(id) ON DELETE SET NULL,
- FOREIGN KEY(tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
- FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
-);
 `);
 
 const AREAS = [
@@ -214,33 +186,12 @@ for (const a of AREAS) insArea.run(a);
 
 function seedUser(username,password,role){
   if(!db.prepare("SELECT id FROM users WHERE username=?").get(username)){
-    db.prepare("INSERT INTO users(username,password_hash,role,active) VALUES(?,?,?,1)").run(username,bcrypt.hashSync(password,12),role);
+    db.prepare("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)").run(username,bcrypt.hashSync(password,12),role);
   }
 }
 seedUser("owner","1234","owner");
 seedUser("admin","1234","admin");
 seedUser("user","1234","user");
-
-/* v5.41.1 one-time authentication repair.
-   Existing persistent databases from older builds could contain an inactive
-   owner/admin or an old password. Repair the two built-in accounts once,
-   then leave future password changes untouched. */
-const AUTH_REPAIR_MARKER = path.join(DATA_ROOT, ".v5411-auth-repaired");
-if(!fs.existsSync(AUTH_REPAIR_MARKER)){
-  const repair = db.transaction(()=>{
-    for(const [username,role] of [["owner","owner"],["admin","admin"]]){
-      const u=db.prepare("SELECT id FROM users WHERE username=?").get(username);
-      if(u){
-        db.prepare("UPDATE users SET role=?,active=1,password_hash=? WHERE id=?")
-          .run(role,bcrypt.hashSync("1234",12),u.id);
-      }else{
-        db.prepare("INSERT INTO users(username,password_hash,role,active) VALUES(?,?,?,1)")
-          .run(username,bcrypt.hashSync("1234",12),role);
-      }
-    }
-  });
-  try{repair();fs.writeFileSync(AUTH_REPAIR_MARKER,new Date().toISOString());}catch{}
-}
 
 if(db.prepare("SELECT COUNT(*) c FROM apartments").get().c===0){
  const aid=n=>db.prepare("SELECT id FROM areas WHERE name=?").get(n).id;
@@ -286,8 +237,7 @@ const upload = multer({
       cb(null,Date.now()+"-"+Math.random().toString(36).slice(2)+ext);
     }
   }),
-  limits:{fileSize:20*1024*1024},
- fileFilter:(_req,file,cb)=>{const ok=[".jpg",".jpeg",".png",".webp"].includes(path.extname(file.originalname).toLowerCase());cb(ok?null:new Error("يسمح فقط بصور JPG وPNG وWEBP"),ok);}
+  limits:{fileSize:10*1024*1024}
 });
 
 
@@ -327,121 +277,10 @@ try { db.prepare(`ALTER TABLE tenants ADD COLUMN renewal_enabled INTEGER NOT NUL
 
 // v5.8: ensure every apartment has a visible internal code.
 db.prepare("UPDATE apartments SET code=number WHERE COALESCE(code,'')='' OR code IS NULL").run();
-// Final finance/location migrations. Safe on old databases.
-for (const [field,type] of [
-  ['latitude','REAL'],['longitude','REAL'],['location_url',"TEXT DEFAULT ''"],['location_label',"TEXT DEFAULT ''"]
-]) { try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch {} }
-for (const [field,type] of [
-  ['commission','REAL DEFAULT 0'],['commission_type',"TEXT DEFAULT 'ثابت'"]
-]) { try { db.prepare(`ALTER TABLE tenants ADD COLUMN ${field} ${type}`).run(); } catch {} }
-
-// v5.45 demo apartments seed — adds 12 clearly marked sample apartments once with local photos and full test details.
-// The sample records are kept separate from real user data and are never re-added.
-const DEMO_SEED_MARKER = path.join(DATA_ROOT, ".v545-demo-seeded");
-if(!fs.existsSync(DEMO_SEED_MARKER)){
-  try{
-    const aid=n=>db.prepare("SELECT id FROM areas WHERE name=?").get(n)?.id;
-    const samples=[
-      ["D-101","دير غبار","متاحة",450,3,2,1,2,120,"شقة تجريبية — أثاث فاخر وإطلالة هادئة"],
-      ["D-102","الرابية","متاحة",400,2,2,1,1,110,"شقة تجريبية — قريبة من الخدمات"],
-      ["D-103","الصويفية","قريبة من التوفر",500,3,2,1,3,130,"شقة تجريبية — تنبيه قبل التوفر بـ 5 أيام"],
-      ["D-104","تلاع العلي","متاحة",420,2,2,1,2,115,"شقة تجريبية — تشطيب حديث"],
-      ["D-105","الشميساني","مؤجرة / محجوزة",550,3,2,1,4,125,"شقة تجريبية — عقد سنوي"],
-      ["D-106","الدوار السابع","متاحة",350,2,1,1,1,95,"شقة تجريبية — مناسبة للعائلة الصغيرة"],
-      ["D-107","خلدا","قريبة من التوفر",600,3,3,1,2,140,"شقة تجريبية — تنبيه قبل التوفر بـ 7 أيام"],
-      ["D-108","دير غبار","متاحة",430,2,2,1,3,105,"شقة تجريبية — صالة واسعة"],
-      ["D-109","مرج الحمام","مؤجرة / محجوزة",450,2,2,1,1,110,"شقة تجريبية — موقف سيارة"],
-      ["D-110","أم أذينة","متاحة",700,3,3,1,5,160,"شقة تجريبية — مستوى فاخر"],
-      ["D-111","البسيسين","متاحة",380,2,2,1,2,100,"شقة تجريبية — شرفة واسعة"],
-      ["D-112","ماحص","قريبة من التوفر",520,3,2,1,3,135,"شقة تجريبية — تنبيه قبل التوفر بـ 4 أيام"]
-    ];
-    const ins=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled,location_url,location_label)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    const doc=db.prepare(`INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)`);
-    const days={"D-103":5,"D-107":7,"D-112":4};
-    const tx=db.transaction(()=>{
-      samples.forEach((x,i)=>{
-        const areaId=aid(x[1]);
-        if(!areaId) return;
-        const near=x[2]==="قريبة من التوفر";
-        const availableDate=near?new Date(Date.now()+days[x[0]]*86400000).toISOString().slice(0,10):null;
-        const r=ins.run(x[0],x[0],areaId,x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],"شهري",0,x[3],x[3]*12,availableDate,1,1,1,near?days[x[0]]:0,near?1:0,"",`${x[1]} — موقع تجريبي`);
-        const filename=`demo-apartment-${String(i+1).padStart(2,'0')}.jpg`;
-        const src=path.join(__dirname,'demo_photos',filename);
-        const dst=path.join(UPLOAD_DIR,filename);
-        if(fs.existsSync(src) && !fs.existsSync(dst)) fs.copyFileSync(src,dst);
-        doc.run(r.lastInsertRowid,filename,`صورة تجريبية ${i+1}`,'صورة شقة');
-      });
-    });
-    tx();
-    fs.writeFileSync(DEMO_SEED_MARKER,new Date().toISOString());
-    log('إضافة شقق تجريبية','تمت إضافة 12 شقة وهمية مع صور وتفاصيل للإختبار','system');
-  }catch(e){ console.error('demo seed failed:',e); }
-}
-
-
-// v5.48 demo-photo repair: if the demo apartments already exist but their
-// local image files were lost/omitted during an earlier deploy, restore them
-// and ensure each demo apartment has its photo document. This runs safely on
-// every startup and never duplicates documents.
-try {
-  const demoRows = db.prepare("SELECT id, number FROM apartments WHERE number LIKE 'D-%'").all();
-  const docIns = db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)");
-  const demoFiles = fs.readdirSync(path.join(__dirname,'demo_photos')).filter(x=>/^demo-apartment-\d+\.jpg$/i.test(x)).sort();
-  const copyPhoto = (a, srcName, slot) => {
-    const src = path.join(__dirname,'demo_photos',srcName);
-    if(!fs.existsSync(src)) return;
-    const ext=path.extname(srcName).toLowerCase();
-    const filename=`demo-${a.id}-${slot}-${Date.now()}${ext}`;
-    fs.copyFileSync(src,path.join(UPLOAD_DIR,filename));
-    db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)").run(a.id,filename,srcName,"صورة شقة");
-  };
-  for (const a of demoRows) {
-    let photos = db.prepare("SELECT id FROM documents WHERE apartment_id=? AND kind='صورة شقة'").all(a.id);
-    const idx=Math.max(0,parseInt(String(a.number).replace(/\D/g,''),10)-101);
-    for(let slot=photos.length; slot<4; slot++){
-      const srcName=demoFiles[(idx+slot)%demoFiles.length];
-      copyPhoto(a,srcName,slot+1);
-    }
-  }
-} catch (e) { console.error('demo photo repair failed:', e); }
 
 app.use(express.json({limit:"2mb"}));
-app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
-/* Always fetch the current app shell so an old mobile/browser cache cannot
-   hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.48.1"}));
-
-
-app.get("/",(req,res)=>{
-  res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.set("Pragma","no-cache");
-  res.set("Expires","0");
-  res.sendFile(path.join(__dirname,"index.html"));
-});
-app.use(express.static(__dirname,{setHeaders:(res,file)=>{
-  if(file.endsWith("index.html")||file.endsWith("sw.js")){
-    res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.set("Pragma","no-cache");
-    res.set("Expires","0");
-  }
-}}));
-
-/* Application access policy:
-   - The management application is never publicly accessible as an authenticated session.
-   - /api/* requires auth except POST /api/login.
-   - /property/:id is the ONLY public property-sharing page and intentionally does not require login.
-   - Any other unknown browser URL is sent back to the login screen.
-   This keeps shared property links public while preventing shared application/dashboard links
-   from exposing the management interface. */
-app.use((req,res,next)=>{
-  if(req.path.startsWith('/api/')) return next();
-  if(req.path.startsWith('/uploads/')) return next();
-  if(req.path==='/property' || req.path.startsWith('/property/')) return next();
-  if(req.path==='/' || req.path==='/manifest.json' || req.path==='/sw.js' || req.path==='/hero-realestate.svg' || req.path==='/luxury-home-hero.jpg') return next();
-  if(req.method==='GET' && req.accepts('html')) return res.redirect(302,'/');
-  return next();
-});
+app.use("/uploads",express.static(UPLOAD_DIR));
+app.use(express.static(__dirname));
 
 function auth(req,res,next){
  const h=req.headers.authorization||"";
@@ -455,7 +294,7 @@ function log(action,detail,who){db.prepare("INSERT INTO logs(action,detail,who) 
 app.post("/api/login",(req,res)=>{
  const {username,password}=req.body||{};
  const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(username);
- if(!u || !["owner","admin"].includes(u.role) || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
+ if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
  const permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission); res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
 });
@@ -483,17 +322,7 @@ app.get("/api/bootstrap",auth,(req,res)=>{
  SUM(status='مؤجرة / محجوزة') rented,
  SUM(status='غير متاحة / صيانة') repair FROM apartments`).get();
  const money=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get();
- const accounting=db.prepare(`SELECT e.*,a.number apartment,t.name tenant,u.username creator FROM accounting_entries e LEFT JOIN apartments a ON a.id=e.apartment_id LEFT JOIN tenants t ON t.id=e.tenant_id LEFT JOIN users u ON u.id=e.created_by ORDER BY e.entry_date DESC,e.id DESC LIMIT 300`).all();
- const acct=db.prepare(`SELECT
-   COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) income,
-   COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) expenses,
-   COALESCE(SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END),0) deposits
-   FROM accounting_entries`).get();
- const paidRent=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments`).get().total;
- const commissionIncome=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM accounting_entries WHERE type='income' AND category='عمولة'`).get().total;
- const netProfit=Number(paidRent||0)+Number(acct.income||0)-Number(acct.expenses||0);
- const tasks=db.prepare(`SELECT t.*,a.username assigned_username,c.username creator_username FROM tasks t LEFT JOIN users a ON a.id=t.assigned_to LEFT JOIN users c ON c.id=t.created_by ORDER BY CASE WHEN t.status='معلقة' THEN 0 ELSE 1 END,t.due_date IS NULL,t.due_date,t.id DESC LIMIT 200`).all();
- res.json({areas,apartments,tenants,payments,documents,logs,stats,money,accounting,accountingSummary:{income:Number(acct.income||0)+Number(paidRent||0),expenses:Number(acct.expenses||0),deposits:Number(acct.deposits||0),netProfit:Number(netProfit)},tasks});
+ res.json({areas,apartments,tenants,payments,documents,logs,stats,money});
 });
 
 
@@ -522,30 +351,6 @@ function deleteOKFor(req){
   return req.user.role==="owner";
 }
 
-app.put("/api/admins/:id/password",auth,(req,res)=>{
- if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط يستطيع تغيير كلمة مرور Admin"});
- const id=Number(req.params.id), newPassword=String(req.body?.newPassword||"");
- if(newPassword.length<6) return res.status(400).json({error:"كلمة المرور يجب أن تكون 6 أحرف/أرقام على الأقل"});
- const u=db.prepare("SELECT id,username FROM users WHERE id=? AND role=\'admin\'").get(id);
- if(!u) return res.status(404).json({error:"Admin غير موجود"});
- db.prepare("UPDATE users SET password_hash=?,active=1 WHERE id=?").run(bcrypt.hashSync(newPassword,12),id);
- log("تغيير كلمة مرور Admin",`تم تغيير كلمة مرور ${u.username}`,req.user.username); res.json({ok:true});
-});
-app.get("/api/tasks",auth,(req,res)=>{
- if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"المهام للمالك وAdmin فقط"});
- res.json(db.prepare(`SELECT t.*,a.username assigned_username,c.username creator_username FROM tasks t LEFT JOIN users a ON a.id=t.assigned_to LEFT JOIN users c ON c.id=t.created_by ORDER BY CASE WHEN t.status=\'معلقة\' THEN 0 ELSE 1 END,t.due_date IS NULL,t.due_date,t.id DESC`).all());
-});
-app.post("/api/tasks",auth,(req,res)=>{
- if(req.user.role!=="owner") return res.status(403).json({error:"إضافة المهام للمالك فقط"});
- const {title,description,assigned_to,due_date}=req.body||{}; if(!String(title||"").trim()) return res.status(400).json({error:"عنوان المهمة مطلوب"});
- const ass=assigned_to?db.prepare("SELECT id FROM users WHERE id=? AND role=\'admin\' AND active=1").get(Number(assigned_to)):null; if(assigned_to&&!ass) return res.status(400).json({error:"اختر Admin فعالاً"});
- const r=db.prepare("INSERT INTO tasks(title,description,assigned_to,due_date,status,created_by) VALUES(?,?,?,?,?,?)").run(String(title).trim(),String(description||""),ass?.id||null,due_date||null,"معلقة",req.user.id); log("إضافة مهمة",`تمت إضافة المهمة ${title}`,req.user.username); res.json({ok:true,id:r.lastInsertRowid});
-});
-app.put("/api/tasks/:id",auth,(req,res)=>{
- if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"غير مصرح"}); const id=Number(req.params.id),t=db.prepare("SELECT * FROM tasks WHERE id=?").get(id); if(!t)return res.status(404).json({error:"المهمة غير موجودة"}); if(req.user.role==="admin"&&t.assigned_to!==req.user.id)return res.status(403).json({error:"هذه المهمة ليست مسندة إليك"}); const status=req.body?.status; if(!["معلقة","مكتملة"].includes(status))return res.status(400).json({error:"حالة المهمة غير صحيحة"}); db.prepare("UPDATE tasks SET status=?,completed_at=? WHERE id=?").run(status,status==="مكتملة"?new Date().toISOString():null,id); log("تحديث مهمة",`المهمة ${id}: ${status}`,req.user.username); res.json({ok:true});
-});
-app.delete("/api/tasks/:id",auth,(req,res)=>{if(req.user.role!=="owner")return res.status(403).json({error:"حذف المهام للمالك فقط"});db.prepare("DELETE FROM tasks WHERE id=?").run(Number(req.params.id));res.json({ok:true});});
-
 app.get("/api/users",auth,(req,res)=>{
  if(!deleteOKFor(req)) return res.status(403).json({error:"للمالك فقط"});
  res.json(db.prepare("SELECT id,username,role,active,created_at FROM users ORDER BY id").all());
@@ -556,7 +361,7 @@ app.post("/api/users",auth,(req,res)=>{
  if(!username||!password||!["owner","admin","user"].includes(role)) return res.status(400).json({error:"بيانات المستخدم ناقصة"});
  try{
    db.prepare("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)").run(username,bcrypt.hashSync(password,12),role);
-   const id=db.prepare("SELECT id FROM users WHERE username=?").get(username)?.id; if(role==="admin"&&id){const ins=db.prepare("INSERT OR IGNORE INTO user_permissions(user_id,permission,enabled) VALUES(?,?,1)"); for(const perm of ADMIN_PERMISSIONS) ins.run(id,perm);} log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true,id});
+   const id=db.prepare("SELECT id FROM users WHERE username=?").get(username)?.id; log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true,id});
  }catch{res.status(409).json({error:"اسم المستخدم موجود مسبقاً"})}
 });
 app.put("/api/users/:id",auth,(req,res)=>{
@@ -610,24 +415,19 @@ app.post("/api/apartments",auth,(req,res)=>{
   const x=req.body||{};
   if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
   const code=String(x.code||x.number).trim();
-  const duplicate=db.prepare("SELECT id FROM apartments WHERE code=? OR number=? LIMIT 1").get(code, String(x.number).trim());
-  if(duplicate) return res.status(409).json({error:"هذا الكود مستخدم بالفعل"});
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
-  const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled,latitude,longitude,location_url,location_label)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"");
+  const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0);
   log("إضافة شقة",`تمت إضافة الشقة ${x.number}`,req.user.username);res.json({id:r.lastInsertRowid});
 });
 
 app.put("/api/apartments/:id",auth,(req,res)=>{
   if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
   const x=req.body||{};
-  const code=String(x.code||x.number).trim();
-  const duplicate=db.prepare("SELECT id FROM apartments WHERE (code=? OR number=?) AND id<>? LIMIT 1").get(code, String(x.number).trim(), Number(req.params.id));
-  if(duplicate) return res.status(409).json({error:"هذا الكود مستخدم بالفعل"});
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
-  db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=?,latitude=?,longitude=?,location_url=?,location_label=? WHERE id=?`)
-    .run(x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"",req.params.id);
+  db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=? WHERE id=?`)
+    .run(x.number,String(x.code||x.number),x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,req.params.id);
   log("تعديل شقة",`تم تعديل الشقة ${x.number}`,req.user.username);res.json({ok:true});
 });
 
@@ -642,15 +442,15 @@ app.delete("/api/apartments/:id",auth,(req,res)=>{
 app.post("/api/tenants",auth,(req,res)=>{
  if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const x=req.body||{};
- const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,commission,commission_type,notes,renewal_enabled)
- VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.commission||0,x.commission_type||"ثابت",x.notes||"",x.renewal_enabled===false?0:1);
+ const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,notes,renewal_enabled)
+ VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1);
  log("إضافة مستأجر",`تمت إضافة المستأجر ${x.name}`,req.user.username);res.json({ok:true,id:r.lastInsertRowid});
 });
 app.put("/api/tenants/:id",auth,(req,res)=>{
  if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
  const x=req.body||{};
- db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,commission=?,commission_type=?,notes=?,renewal_enabled=? WHERE id=?`)
- .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.commission||0,x.commission_type||"ثابت",x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
+ db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,notes=?,renewal_enabled=? WHERE id=?`)
+ .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
  log("تعديل مستأجر",`تم تعديل المستأجر ${x.name}`,req.user.username);res.json({ok:true});
 });
 
@@ -806,39 +606,11 @@ app.post("/api/backup/restore/:name",auth,async(req,res)=>{
 });
 app.get("/api/export/full-backup",auth,(req,res)=>res.status(410).json({error:"الحفظ اليدوي للنسخة الكاملة غير متاح؛ النسخ الاحتياطي التلقائي يحفظ البيانات والصور كل 24 ساعة ويحتفظ بآخر 10 نسخ"}));
 
-app.get('/api/accounting',auth,(req,res)=>{
-  if(!['owner','admin'].includes(req.user.role)) return res.status(403).json({error:'غير مصرح'});
-  const rows=db.prepare(`SELECT e.*,a.number apartment,t.name tenant FROM accounting_entries e LEFT JOIN apartments a ON a.id=e.apartment_id LEFT JOIN tenants t ON t.id=e.tenant_id ORDER BY e.entry_date DESC,e.id DESC LIMIT 500`).all();
-  const s=db.prepare(`SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) income,COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) expenses,COALESCE(SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END),0) deposits FROM accounting_entries`).get();
-  const rent=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments`).get().total;
-  res.json({entries:rows,summary:{income:Number(s.income)+Number(rent),rent:Number(rent),expenses:Number(s.expenses),deposits:Number(s.deposits),netProfit:Number(s.income)+Number(rent)-Number(s.expenses)}});
-});
-app.post('/api/accounting',auth,(req,res)=>{
-  if(!['owner','admin'].includes(req.user.role)) return res.status(403).json({error:'غير مصرح'});
-  const x=req.body||{}; const type=['income','expense','deposit'].includes(x.type)?x.type:'income'; const amount=Number(x.amount||0);
-  if(!(amount>0)||!x.entry_date) return res.status(400).json({error:'أدخل المبلغ والتاريخ'});
-  const r=db.prepare(`INSERT INTO accounting_entries(apartment_id,tenant_id,type,category,amount,entry_date,description,created_by) VALUES(?,?,?,?,?,?,?,?)`).run(x.apartment_id||null,x.tenant_id||null,type,String(x.category||'أخرى'),amount,x.entry_date,String(x.description||''),req.user.id);
-  log('إضافة حركة محاسبية',`${type} ${amount} د.أ — ${x.category||'أخرى'}`,req.user.username); res.json({ok:true,id:r.lastInsertRowid});
-});
-app.delete('/api/accounting/:id',auth,(req,res)=>{
-  if(req.user.role!=='owner') return res.status(403).json({error:'المالك فقط'});
-  db.prepare('DELETE FROM accounting_entries WHERE id=?').run(req.params.id); log('حذف حركة محاسبية',`تم حذف الحركة ${req.params.id}`,req.user.username); res.json({ok:true});
-});
-
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
  const rows=db.prepare(`SELECT a.number,ar.name area,a.status,a.rent,a.rooms,a.baths,a.floor,a.size_m2,a.notes FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id`).all();
  const header="number,area,status,rent,rooms,baths,floor,size_m2,notes\n";
  const csv=header+rows.map(r=>[r.number,r.area,r.status,r.rent,r.rooms,r.baths,r.floor,r.size_m2,r.notes].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n");
  res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition","attachment; filename=apartments.csv");res.send("\uFEFF"+csv);
-});
-
-app.get('/property/:id',(req,res)=>{
-  const a=db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id WHERE a.id=?`).get(req.params.id);
-  if(!a) return res.status(404).send('<h2 style="font-family:Arial;text-align:center">الشقة غير موجودة</h2>');
-  const photos=db.prepare(`SELECT filename,original_name FROM documents WHERE apartment_id=? AND kind='صورة شقة' ORDER BY id DESC`).all(a.id);
-  const photo=photos[0]?.filename?`<img src="/uploads/${encodeURIComponent(photos[0].filename)}" style="width:100%;max-height:420px;object-fit:cover;border-radius:18px">`:'';
-  const share= `${req.protocol}://${req.get('host')}/property/${a.id}`;
-  res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><meta name="viewport" content="width=device-width,initial-scale=1"><title>شقة ${String(a.number).replace(/</g,'')}</title><style>body{margin:0;background:#07101a;color:#fff;font-family:Arial,sans-serif}.wrap{max-width:900px;margin:auto;padding:18px}.brand{color:#e5b957;font-size:24px;font-weight:900;margin:10px 0 18px}.card{background:#101b27;border:1px solid #8f6b2a;border-radius:22px;padding:16px;box-shadow:0 12px 40px #0006}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:15px}.item{background:#172433;border-radius:14px;padding:12px}.item b{display:block;color:#f0cc76;margin-bottom:5px}.price{font-size:25px;color:#f0cc76;font-weight:900;margin:18px 0}.btn{display:inline-block;background:#e1b451;color:#111;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:900;margin:5px}.muted{color:#b9c2cc}</style><div class="wrap"><div class="brand">عقارات عمان الغربية<br><small class="muted">WEST AMMAN REAL ESTATE</small></div><div class="card">${photo}<h1>شقة ${String(a.number).replace(/</g,'')}</h1><div class="muted">${String(a.area||'')}</div><div class="grid"><div class="item"><b>الغرف</b>${a.rooms||0}</div><div class="item"><b>الحمامات</b>${a.baths||0}</div><div class="item"><b>المساحة</b>${a.size_m2||0} م²</div><div class="item"><b>الطابق</b>${a.floor||0}</div><div class="item"><b>الحالة</b>${String(a.status||'')}</div></div><div class="price">${Number(a.monthly_rent||a.rent||0).toLocaleString()} د.أ / ${String(a.rental_type||'شهري')}</div><a class="btn" href="https://wa.me/?text=${encodeURIComponent('شقة '+a.number+' — '+(a.area||'')+'\n'+share)}">🟢 مشاركة الشقة</a><p class="muted">هذه صفحة عرض عامة ولا تتطلب تسجيل دخول.</p></div></div></html>`);
 });
 
 app.use((req,res,next)=>{
@@ -907,5 +679,4 @@ app.get('/api/availability-dashboard', auth, (req,res)=>{
   res.json({count:alerts.length, alerts});
 });
 
-app.use((err,req,res,next)=>{if(err){console.error(err);return res.status(400).json({error:err.message||"حدث خطأ"});}next();});
 app.listen(PORT,"0.0.0.0",()=>console.log(`West Amman Property Manager: http://localhost:${PORT}`));
