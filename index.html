@@ -822,5 +822,98 @@ render=function(){_v517_render();if(page==='users')loadBackupPanel();};
 @media(max-width:600px){.backup-status-grid{grid-template-columns:1fr}.backup-row{align-items:flex-start}.backup-row .btn{white-space:nowrap}}
 </style>
 
+
+<script id="v5-23-final-fixes">
+/* v5.23 — WhatsApp image sharing + password show/hide */
+(function(){
+  function addPasswordToggle(input){
+    if(!input || input.dataset.passwordToggle==='1') return;
+    input.dataset.passwordToggle='1';
+    const wrap=document.createElement('span');
+    wrap.className='password-wrap-v523';
+    input.parentNode.insertBefore(wrap,input);
+    wrap.appendChild(input);
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='password-toggle-v523'; btn.setAttribute('aria-label','إظهار كلمة المرور'); btn.textContent='👁️';
+    btn.onclick=function(){
+      const show=input.type==='password';
+      input.type=show?'text':'password';
+      btn.textContent=show?'🙈':'👁️';
+      btn.setAttribute('aria-label',show?'إخفاء كلمة المرور':'إظهار كلمة المرور');
+    };
+    wrap.appendChild(btn);
+  }
+  function scanPasswords(root=document){
+    root.querySelectorAll('input[type="password"]').forEach(addPasswordToggle);
+  }
+  document.addEventListener('DOMContentLoaded',()=>scanPasswords());
+  new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(n=>{
+    if(n.nodeType===1){ if(n.matches?.('input[type="password"]')) addPasswordToggle(n); scanPasswords(n); }
+  }))).observe(document.documentElement,{childList:true,subtree:true});
+
+  window.v523ShareFiles=async function(files,title='صور الشقة'){
+    if(!files?.length) throw new Error('لم يتم اختيار أي صورة');
+    if(!navigator.share) throw new Error('المتصفح لا يدعم مشاركة الملفات. افتح التطبيق في Chrome على الهاتف.');
+    const canMulti=typeof navigator.canShare==='function' && navigator.canShare({files});
+    if(canMulti){
+      try{return await navigator.share({title,files});}
+      catch(e){ if(e?.name==='AbortError') throw e; }
+    }
+    /* Fallback: بعض إصدارات Android/Chrome/WhatsApp لا تقبل عدة ملفات دفعة واحدة. */
+    const canOne=typeof navigator.canShare==='function' && navigator.canShare({files:[files[0]]});
+    if(!canOne) throw new Error('هذا المتصفح لا يدعم إرسال الصور عبر المشاركة. افتح التطبيق في Chrome ثم اختر WhatsApp.');
+    for(let i=0;i<files.length;i++){
+      await navigator.share({title:`${title} (${i+1}/${files.length})`,files:[files[i]]});
+      if(i<files.length-1) await new Promise(r=>setTimeout(r,450));
+    }
+  };
+
+  window.shareApartmentPhotos=async function(id){
+    if(window.me?.role!=='owner') return alert('المشاركة متاحة للمالك فقط');
+    const photos=(window.D?.documents||[]).filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');
+    if(!photos.length) return alert('لا توجد صور لهذه الشقة');
+    const box=document.createElement('div'); box.className='wa-picker';
+    box.innerHTML=`<div class="wa-picker-box"><div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v523Close">✕ إغلاق</button></div><div class="notice">حدد الصور التي تريد إرسالها. إذا لم يدعم الهاتف إرسال عدة صور دفعة واحدة، سيُرسل كل اختيار على حدة إلى WhatsApp.</div><div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}"></label>`).join('')}</div><div class="wa-range-actions"><button class="btn ghost" id="v523All">تحديد الكل</button><button class="btn wa-btn" id="v523Send">🟢 إرسال إلى WhatsApp</button></div></div>`;
+    document.body.appendChild(box);
+    box.querySelector('#v523Close').onclick=()=>box.remove();
+    box.onclick=e=>{if(e.target===box)box.remove()};
+    box.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.onchange=()=>cb.closest('.wa-photo-item')?.classList.toggle('selected',cb.checked));
+    box.querySelector('#v523All').onclick=()=>box.querySelectorAll('input[type="checkbox"]').forEach(cb=>{cb.checked=true;cb.closest('.wa-photo-item')?.classList.add('selected')});
+    box.querySelector('#v523Send').onclick=async()=>{
+      const btn=box.querySelector('#v523Send');
+      try{
+        const chosen=[...box.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>photos[Number(cb.dataset.i)]);
+        if(!chosen.length) return alert('حدد صورة واحدة على الأقل');
+        btn.disabled=true; btn.textContent='⏳ تجهيز الصور...';
+        const files=[];
+        for(let i=0;i<chosen.length;i++){
+          const d=chosen[i];
+          const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
+          if(!r.ok) continue;
+          const blob=await r.blob();
+          const name=d.original_name||d.filename||`صورة-${i+1}.jpg`;
+          const ext=(name.match(/\.(jpe?g|png|webp)$/i)||[])[1]?.toLowerCase()||'jpg';
+          const mime=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
+          files.push(new File([blob],`شقة-${id}-صورة-${i+1}.${ext}`,{type:mime,lastModified:Date.now()}));
+        }
+        if(!files.length) throw new Error('تعذر تجهيز الصور للمشاركة');
+        btn.textContent='📤 فتح WhatsApp...';
+        await window.v523ShareFiles(files,'صور الشقة');
+        box.remove();
+      }catch(e){
+        if(e?.name!=='AbortError') alert(e?.message||'تعذر إرسال الصور عبر WhatsApp');
+        btn.disabled=false; btn.textContent='🟢 إرسال إلى WhatsApp';
+      }
+    };
+  };
+})();
+</script>
+<style id="v5-23-final-fixes-css">
+.password-wrap-v523{position:relative;display:block;width:100%}
+.password-wrap-v523>input{width:100%;padding-left:48px!important;box-sizing:border-box}
+.password-toggle-v523{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:38px;height:36px;border:0;border-radius:10px;background:#f1e8d9;color:#24142f;font-size:19px;cursor:pointer;z-index:2}
+.password-toggle-v523:active{transform:translateY(-50%) scale(.96)}
+</style>
+
 </body>
 </html>
