@@ -6,6 +6,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -389,6 +390,18 @@ app.delete("/api/logs",auth,(req,res)=>{
   db.prepare("DELETE FROM logs").run();
   log("مسح السجل","تم مسح سجل العمليات بالكامل",req.user.username);
   res.json({ok:true});
+});
+
+app.get("/api/export/full-backup",auth,(req,res)=>{
+ if(req.user.role!=="owner") return res.status(403).json({error:"حفظ النسخة الكاملة متاح للمالك فقط"});
+ try{ db.pragma("wal_checkpoint(TRUNCATE)"); }catch(e){}
+ const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+ const out=path.join("/tmp",`west-amman-backup-${stamp}.tar.gz`);
+ const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
+ execFile("tar",["-czf",out,...items],{cwd:__dirname},(err)=>{
+   if(err) return res.status(500).json({error:"تعذر إنشاء النسخة الاحتياطية"});
+   res.download(out,"west-amman-backup.tar.gz",()=>{try{fs.unlinkSync(out)}catch(e){}});
+ });
 });
 
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
