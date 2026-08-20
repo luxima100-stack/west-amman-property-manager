@@ -1,4 +1,2 @@
-West Amman Property Manager
-Release: 5.23.0
-WhatsApp image sharing fix + password visibility toggle
-Node: 22.22.0
+5.23.1
+WhatsApp image picker restored + password show/hide

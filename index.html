@@ -274,7 +274,7 @@ const statuses=["متاحة","قريبة من التوفر","الحجز ينته
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 async function api(url,opt={}){opt.headers={...(opt.headers||{}),Authorization:"Bearer "+token};if(opt.body&&!opt.headers["Content-Type"])opt.headers["Content-Type"]="application/json";let r=await fetch(url,opt);let j=await r.json();if(!r.ok)throw Error(j.error||"خطأ");return j}
-function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><input id="lp" type="password" value="1234"></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
+function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><div class="password-wrap"><input id="lp" type="password" value="1234" autocomplete="current-password"><button type="button" class="password-toggle" onclick="togglePassword('lp',this)" aria-label="إظهار كلمة المرور">👁️</button></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
 async function doLogin(){try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
 async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
 function nav(p){page=p;search="";render()}
@@ -624,10 +624,10 @@ function chat(){if(!["owner","admin"].includes(me.role))return '<div class="empt
 async function loadChat(){try{let r=await fetch("/api/messages",{headers:{Authorization:"Bearer "+token}});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل تحميل المحادثة");let box=$("chatMessages");if(!box)return;box.innerHTML=j.length?j.map(m=>`<div class="msg ${m.sender_username===me.username?"mine":""}"><div class="meta2">${esc(m.sender_username)} • ${esc(m.created_at)}</div><div>${esc(m.message)}</div></div>`).join(""):'<div class="empty">لا توجد رسائل بعد</div>';box.scrollTop=box.scrollHeight}catch(e){let box=$("chatMessages");if(box)box.innerHTML=`<div class="notice">${esc(e.message)}</div>`}}
 async function sendChat(){let input=$("chatInput");let message=(input?.value||"").trim();if(!message)return;try{await api("/api/messages",{method:"POST",body:JSON.stringify({message})});input.value="";await loadChat()}catch(e){alert(e.message)}}
 function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ مستخدم</button>':""}<button class="btn dark" onclick="changePassword()">🔐 تغيير كلمة المرور</button></div></div><div class="cards"><div class="card"><h4>المالك</h4><div class="meta">إدارة كاملة + حذف + مستخدمين</div></div><div class="card"><h4>Admin</h4><div class="meta">إضافة وتعديل بدون حذف</div></div><div class="card"><h4>User</h4><div class="meta">عرض وبحث فقط</div></div></div><div class="notice" style="margin-top:14px">يمكن لكل مستخدم تغيير كلمة مرور حسابه من هنا. استخدم كلمة مرور قوية ولا تشاركها.</div></div>`}
-function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><input id="cp" type="password" autocomplete="current-password"></div><div class="field"><label>كلمة المرور الجديدة</label><input id="np" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><input id="np2" type="password" minlength="6" autocomplete="new-password"></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
+function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><div class="password-wrap"><input id="cp" type="password" autocomplete="current-password"><button type="button" class="password-toggle" onclick="togglePassword('cp',this)">👁️</button></div></div><div class="field"><label>كلمة المرور الجديدة</label><div class="password-wrap"><input id="np" type="password" minlength="6" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('np',this)">👁️</button></div></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><div class="password-wrap"><input id="np2" type="password" minlength="6" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('np2',this)">👁️</button></div></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
 async function savePassword(){try{if(np.value!==np2.value)throw Error("كلمتا المرور الجديدتان غير متطابقتين");if(np.value.length<6)throw Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف/أرقام على الأقل");await api("/api/change-password",{method:"POST",body:JSON.stringify({currentPassword:cp.value,newPassword:np.value})});closeM();alert("تم تغيير كلمة المرور بنجاح. استخدمها في تسجيل الدخول القادم.")}catch(e){alert(e.message)}}
 
-function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><input id="up" type="password"></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
+function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><div class="password-wrap"><input id="up" type="password" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('up',this)">👁️</button></div></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
 async function saveU(){try{await api("/api/users",{method:"POST",body:JSON.stringify({username:un.value,password:up.value,role:ur.value})});closeM();alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3></div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
 function modal(x){
@@ -811,6 +811,84 @@ users=function(){
 };
 const _v517_render=render;
 render=function(){_v517_render();if(page==='users')loadBackupPanel();};
+
+/* v5.23 FINAL FIXES: WhatsApp image picker + password visibility */
+(function(){
+  const st=document.createElement('style');
+  st.textContent=`
+    .password-wrap{position:relative;display:flex;align-items:center;width:100%}
+    .password-wrap input{width:100%;padding-left:48px!important}
+    .password-toggle{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:38px;height:36px;border:0;border-radius:10px;background:#f1e8d9;color:#251432;font-size:18px;cursor:pointer;z-index:2}
+    .wa-photo-item{cursor:pointer;position:relative;overflow:hidden;border:2px solid transparent!important;border-radius:14px;padding:3px!important}
+    .wa-photo-item.selected{border-color:#b8953f!important;box-shadow:0 0 0 2px rgba(184,149,63,.18)}
+    .wa-photo-item img{display:block;width:100%;height:120px;object-fit:cover;border-radius:10px}
+    .wa-photo-item input{position:absolute;top:8px;right:8px;width:22px;height:22px;z-index:3;accent-color:#b8953f}
+    .wa-photo-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;max-height:52vh;overflow:auto;padding:4px}
+    @media(max-width:600px){.wa-photo-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:48vh}.wa-photo-item img{height:125px}}
+  `;
+  document.head.appendChild(st);
+})();
+function togglePassword(id,btn){const el=document.getElementById(id);if(!el)return;const show=el.type==='password';el.type=show?'text':'password';btn.textContent=show?'🙈':'👁️';btn.setAttribute('aria-label',show?'إخفاء كلمة المرور':'إظهار كلمة المرور');}
+async function v523ShareImageFiles(files,title){
+  if(!files.length) throw new Error('لم يتم تحديد أي صورة');
+  if(!navigator.share) throw new Error('المشاركة غير مدعومة في هذا المتصفح. افتح التطبيق في Chrome على الهاتف.');
+  // Prefer one share action for all selected images.
+  if(navigator.canShare && navigator.canShare({files})){
+    await navigator.share({title:title||'صور الشقة',text:title||'صور الشقة',files});
+    return;
+  }
+  // Fallback for phones/browsers that reject multiple files: share each selected image.
+  for(let i=0;i<files.length;i++){
+    const file=files[i];
+    if(navigator.canShare && !navigator.canShare({files:[file]})) throw new Error('هذا الهاتف لا يدعم مشاركة الصور من المتصفح. افتح التطبيق في Chrome.');
+    await navigator.share({title:`${title||'صور الشقة'} — ${i+1}/${files.length}`,files:[file]});
+  }
+}
+async function shareApartmentPhotos(id){
+  if(me?.role!=='owner') return alert('المشاركة متاحة للمالك فقط');
+  const photos=(D?.documents||[]).filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');
+  if(!photos.length) return alert('لا توجد صور لهذه الشقة');
+  const box=document.createElement('div');box.className='wa-picker';
+  box.innerHTML=`<div class="wa-picker-box">
+    <div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v523Close">✕ إغلاق</button></div>
+    <div class="notice">حدد الصور التي تريد إرسالها، ثم اضغط زر WhatsApp.</div>
+    <div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}" loading="lazy"></label>`).join('')}</div>
+    <div class="wa-range-actions"><button class="btn ghost" id="v523All">تحديد الكل</button><button class="btn ghost" id="v523Clear">إلغاء التحديد</button><button class="btn wa-btn" id="v523Send">🟢 WhatsApp — إرسال الصور</button></div>
+  </div>`;
+  document.body.appendChild(box);
+  const close=()=>box.remove();
+  box.querySelector('#v523Close').onclick=close;
+  box.onclick=e=>{if(e.target===box)close()};
+  box.querySelectorAll('.wa-photo-item').forEach(item=>{
+    const cb=item.querySelector('input');
+    cb.addEventListener('change',()=>item.classList.toggle('selected',cb.checked));
+    item.addEventListener('click',e=>{if(e.target!==cb){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}});
+  });
+  box.querySelector('#v523All').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.dispatchEvent(new Event('change'))});
+  box.querySelector('#v523Clear').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.dispatchEvent(new Event('change'))});
+  box.querySelector('#v523Send').onclick=async()=>{
+    const btn=box.querySelector('#v523Send');
+    const chosen=[...box.querySelectorAll('input[type=checkbox]:checked')].map(cb=>photos[Number(cb.dataset.i)]).filter(Boolean);
+    if(!chosen.length) return alert('حدد صورة واحدة على الأقل');
+    try{
+      btn.disabled=true;btn.textContent='⏳ تجهيز الصور...';
+      const files=[];
+      for(let i=0;i<chosen.length;i++){
+        const d=chosen[i];
+        const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
+        if(!r.ok) continue;
+        const b=await r.blob();
+        const ext=(d.original_name||d.filename||'jpg').split('.').pop().toLowerCase();
+        const mime=(b.type&&b.type.startsWith('image/'))?b.type:(ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg');
+        files.push(new File([b],`شقة-${id}-صورة-${i+1}.${ext||'jpg'}`,{type:mime,lastModified:Date.now()}));
+      }
+      if(!files.length) throw new Error('تعذر تجهيز الصور المحددة');
+      btn.textContent='⏳ فتح المشاركة...';
+      await v523ShareImageFiles(files,'صور الشقة');
+      close();
+    }catch(e){if(e?.name!=='AbortError') alert(e?.message||'تعذر إرسال الصور');btn.disabled=false;btn.textContent='🟢 WhatsApp — إرسال الصور'}
+  };
+}
 </script>
 <style id="v5-17-backup-css">
 .backup-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
@@ -820,99 +898,6 @@ render=function(){_v517_render();if(page==='users')loadBackupPanel();};
 .backup-row:last-child{border-bottom:0}.backup-restore-btn{font-weight:900}
 .danger-note{border-color:#e5a4a7!important;background:#fff1f1!important;color:#8e2228!important}
 @media(max-width:600px){.backup-status-grid{grid-template-columns:1fr}.backup-row{align-items:flex-start}.backup-row .btn{white-space:nowrap}}
-</style>
-
-
-<script id="v5-23-final-fixes">
-/* v5.23 — WhatsApp image sharing + password show/hide */
-(function(){
-  function addPasswordToggle(input){
-    if(!input || input.dataset.passwordToggle==='1') return;
-    input.dataset.passwordToggle='1';
-    const wrap=document.createElement('span');
-    wrap.className='password-wrap-v523';
-    input.parentNode.insertBefore(wrap,input);
-    wrap.appendChild(input);
-    const btn=document.createElement('button');
-    btn.type='button'; btn.className='password-toggle-v523'; btn.setAttribute('aria-label','إظهار كلمة المرور'); btn.textContent='👁️';
-    btn.onclick=function(){
-      const show=input.type==='password';
-      input.type=show?'text':'password';
-      btn.textContent=show?'🙈':'👁️';
-      btn.setAttribute('aria-label',show?'إخفاء كلمة المرور':'إظهار كلمة المرور');
-    };
-    wrap.appendChild(btn);
-  }
-  function scanPasswords(root=document){
-    root.querySelectorAll('input[type="password"]').forEach(addPasswordToggle);
-  }
-  document.addEventListener('DOMContentLoaded',()=>scanPasswords());
-  new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(n=>{
-    if(n.nodeType===1){ if(n.matches?.('input[type="password"]')) addPasswordToggle(n); scanPasswords(n); }
-  }))).observe(document.documentElement,{childList:true,subtree:true});
-
-  window.v523ShareFiles=async function(files,title='صور الشقة'){
-    if(!files?.length) throw new Error('لم يتم اختيار أي صورة');
-    if(!navigator.share) throw new Error('المتصفح لا يدعم مشاركة الملفات. افتح التطبيق في Chrome على الهاتف.');
-    const canMulti=typeof navigator.canShare==='function' && navigator.canShare({files});
-    if(canMulti){
-      try{return await navigator.share({title,files});}
-      catch(e){ if(e?.name==='AbortError') throw e; }
-    }
-    /* Fallback: بعض إصدارات Android/Chrome/WhatsApp لا تقبل عدة ملفات دفعة واحدة. */
-    const canOne=typeof navigator.canShare==='function' && navigator.canShare({files:[files[0]]});
-    if(!canOne) throw new Error('هذا المتصفح لا يدعم إرسال الصور عبر المشاركة. افتح التطبيق في Chrome ثم اختر WhatsApp.');
-    for(let i=0;i<files.length;i++){
-      await navigator.share({title:`${title} (${i+1}/${files.length})`,files:[files[i]]});
-      if(i<files.length-1) await new Promise(r=>setTimeout(r,450));
-    }
-  };
-
-  window.shareApartmentPhotos=async function(id){
-    if(window.me?.role!=='owner') return alert('المشاركة متاحة للمالك فقط');
-    const photos=(window.D?.documents||[]).filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');
-    if(!photos.length) return alert('لا توجد صور لهذه الشقة');
-    const box=document.createElement('div'); box.className='wa-picker';
-    box.innerHTML=`<div class="wa-picker-box"><div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v523Close">✕ إغلاق</button></div><div class="notice">حدد الصور التي تريد إرسالها. إذا لم يدعم الهاتف إرسال عدة صور دفعة واحدة، سيُرسل كل اختيار على حدة إلى WhatsApp.</div><div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}"></label>`).join('')}</div><div class="wa-range-actions"><button class="btn ghost" id="v523All">تحديد الكل</button><button class="btn wa-btn" id="v523Send">🟢 إرسال إلى WhatsApp</button></div></div>`;
-    document.body.appendChild(box);
-    box.querySelector('#v523Close').onclick=()=>box.remove();
-    box.onclick=e=>{if(e.target===box)box.remove()};
-    box.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.onchange=()=>cb.closest('.wa-photo-item')?.classList.toggle('selected',cb.checked));
-    box.querySelector('#v523All').onclick=()=>box.querySelectorAll('input[type="checkbox"]').forEach(cb=>{cb.checked=true;cb.closest('.wa-photo-item')?.classList.add('selected')});
-    box.querySelector('#v523Send').onclick=async()=>{
-      const btn=box.querySelector('#v523Send');
-      try{
-        const chosen=[...box.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>photos[Number(cb.dataset.i)]);
-        if(!chosen.length) return alert('حدد صورة واحدة على الأقل');
-        btn.disabled=true; btn.textContent='⏳ تجهيز الصور...';
-        const files=[];
-        for(let i=0;i<chosen.length;i++){
-          const d=chosen[i];
-          const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
-          if(!r.ok) continue;
-          const blob=await r.blob();
-          const name=d.original_name||d.filename||`صورة-${i+1}.jpg`;
-          const ext=(name.match(/\.(jpe?g|png|webp)$/i)||[])[1]?.toLowerCase()||'jpg';
-          const mime=ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
-          files.push(new File([blob],`شقة-${id}-صورة-${i+1}.${ext}`,{type:mime,lastModified:Date.now()}));
-        }
-        if(!files.length) throw new Error('تعذر تجهيز الصور للمشاركة');
-        btn.textContent='📤 فتح WhatsApp...';
-        await window.v523ShareFiles(files,'صور الشقة');
-        box.remove();
-      }catch(e){
-        if(e?.name!=='AbortError') alert(e?.message||'تعذر إرسال الصور عبر WhatsApp');
-        btn.disabled=false; btn.textContent='🟢 إرسال إلى WhatsApp';
-      }
-    };
-  };
-})();
-</script>
-<style id="v5-23-final-fixes-css">
-.password-wrap-v523{position:relative;display:block;width:100%}
-.password-wrap-v523>input{width:100%;padding-left:48px!important;box-sizing:border-box}
-.password-toggle-v523{position:absolute;left:7px;top:50%;transform:translateY(-50%);width:38px;height:36px;border:0;border-radius:10px;background:#f1e8d9;color:#24142f;font-size:19px;cursor:pointer;z-index:2}
-.password-toggle-v523:active{transform:translateY(-50%) scale(.96)}
 </style>
 
 </body>
