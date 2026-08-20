@@ -142,6 +142,18 @@ body{font-family:"Tajawal",Tahoma,Arial,sans-serif;color:var(--t);font-size:15px
  .v511-table-card th,.v511-table-card td{padding:8px 6px}
 }
 </style>
+<style id="v5-15-mobile-close-fix">
+.modal{touch-action:auto}
+.modalbox{position:relative}
+.mobile-modal-close{position:absolute;top:8px;left:8px;z-index:9999;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:50%;background:#1d2942;color:#fff;font-size:25px;font-weight:900;line-height:1;box-shadow:0 5px 0 rgba(0,0,0,.18),0 8px 20px rgba(0,0,0,.18);cursor:pointer}
+.mobile-modal-close:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+@media(max-width:600px){
+ .modal{padding:6px!important;align-items:flex-start!important}
+ .modalbox{width:96vw!important;max-width:96vw!important;max-height:94dvh!important;margin-top:6px!important;padding:14px!important;padding-top:54px!important;border-radius:18px!important;overflow:auto!important;-webkit-overflow-scrolling:touch}
+ .mobile-modal-close{position:sticky;top:0;float:left;margin:-46px 0 2px 0;width:42px;height:42px;font-size:23px}
+ .modalhead{top:-14px!important;z-index:20!important}
+}
+</style>
 <script id="v5-11-final-overrides">
 function v511Price(a,rt){if(rt==='يومي')return Number(a.daily_rent||0);if(rt==='سنوي')return Number(a.annual_rent||0);return Number(a.monthly_rent||a.rent||0)}
 function v511OpenPriceRange(){
@@ -556,7 +568,19 @@ async function savePassword(){try{if(np.value!==np2.value)throw Error("كلمت�
 function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><input id="up" type="password"></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
 async function saveU(){try{await api("/api/users",{method:"POST",body:JSON.stringify({username:un.value,password:up.value,role:ur.value})});closeM();alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3></div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
-function modal(x){$("modalbox").innerHTML=x;$("modal").classList.add("show")}function closeM(){$("modal").classList.remove("show")}function logout(){localStorage.clear();token=null;me=null;login()}
+function modal(x){
+  const box=$("modalbox");
+  box.innerHTML=x;
+  const old=box.querySelector(".mobile-modal-close"); if(old) old.remove();
+  const close=document.createElement("button");
+  close.type="button"; close.className="mobile-modal-close"; close.setAttribute("aria-label","إغلاق نافذة التفاصيل"); close.title="إغلاق"; close.textContent="×";
+  close.onclick=closeM;
+  box.prepend(close);
+  $("modal").classList.add("show");
+  document.body.style.overflow="hidden";
+}
+function closeM(){$("modal").classList.remove("show");document.body.style.overflow=""}
+function logout(){localStorage.clear();token=null;me=null;login()}
 function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat()}
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 load();
@@ -668,6 +692,14 @@ async function shareApartmentDetails(id){
     window.location.href=wa;
   }catch(e){console.error(e);alert('تعذر فتح WhatsApp لإرسال التفاصيل.');}
 }
+</script>
+
+<script id="v5-15-close-handlers">
+document.addEventListener("DOMContentLoaded",()=>{
+  const m=$("modal");
+  if(m){m.addEventListener("click",e=>{if(e.target===m)closeM()});}
+  document.addEventListener("keydown",e=>{if(e.key==="Escape" && $("modal")?.classList.contains("show"))closeM()});
+});
 </script>
 </body>
 </html>
