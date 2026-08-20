@@ -1,14 +1,17 @@
 {
-  "name":"west-amman-property-manager",
-  "version":"5.18.0",
-  "private":true,
-  "type":"module",
-  "scripts":{"start":"node server.js"},
-  "dependencies":{
-    "bcryptjs":"^2.4.3",
-    "better-sqlite3":"^11.7.0",
-    "express":"^4.21.2",
-    "jsonwebtoken":"^9.0.2",
-    "multer":"^1.4.5-lts.1","tar":"^7.4.3"
+  "name": "west-amman-property-manager",
+  "version": "5.20.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "tar": "^7.4.3"
   }
 }
