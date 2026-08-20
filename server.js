@@ -293,10 +293,17 @@ function log(action,detail,who){db.prepare("INSERT INTO logs(action,detail,who) 
 
 app.post("/api/login",(req,res)=>{
  const {username,password}=req.body||{};
- const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(username);
- if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
- const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
- const permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission); res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
+ try{
+  const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(String(username||"").trim());
+  if(!u) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
+  let ok=false;
+  try{ok=bcrypt.compareSync(String(password||""),u.password_hash)}catch{}
+  if(!ok) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
+  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
+  let permissions=[];
+  try{permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission)}catch{}
+  res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
+ }catch(e){res.status(500).json({error:"حدث خطأ في خادم تسجيل الدخول"});}
 });
 
 app.post("/api/change-password",auth,(req,res)=>{
