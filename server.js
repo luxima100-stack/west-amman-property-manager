@@ -293,17 +293,10 @@ function log(action,detail,who){db.prepare("INSERT INTO logs(action,detail,who) 
 
 app.post("/api/login",(req,res)=>{
  const {username,password}=req.body||{};
- try{
-  const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(String(username||"").trim());
-  if(!u) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
-  let ok=false;
-  try{ok=bcrypt.compareSync(String(password||""),u.password_hash)}catch{}
-  if(!ok) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
-  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
-  let permissions=[];
-  try{permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission)}catch{}
-  res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
- }catch(e){res.status(500).json({error:"حدث خطأ في خادم تسجيل الدخول"});}
+ const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(username);
+ if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
+ const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
+ const permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission); res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
 });
 
 app.post("/api/change-password",auth,(req,res)=>{
@@ -317,19 +310,18 @@ app.post("/api/change-password",auth,(req,res)=>{
 });
 
 app.get("/api/bootstrap",auth,(req,res)=>{
- const safe=(fn,def)=>{try{return fn()}catch(e){return def}};
- const areas=safe(()=>db.prepare("SELECT * FROM areas ORDER BY name").all(),[]);
- const apartments=safe(()=>db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id DESC`).all(),[]);
- const tenants=safe(()=>db.prepare(`SELECT t.*,a.number apartment,a.area_id FROM tenants t LEFT JOIN apartments a ON a.id=t.apartment_id ORDER BY t.id DESC`).all(),[]);
- const payments=safe(()=>db.prepare(`SELECT p.*,t.name tenant FROM payments p LEFT JOIN tenants t ON t.id=p.tenant_id ORDER BY p.payment_date DESC,p.id DESC LIMIT 100`).all(),[]);
- const documents=safe(()=>db.prepare("SELECT * FROM documents ORDER BY id DESC LIMIT 100").all(),[]);
- const logs=safe(()=>db.prepare("SELECT * FROM logs ORDER BY id DESC LIMIT 150").all(),[]);
- const stats=safe(()=>db.prepare(`SELECT COUNT(*) total,
+ const areas=db.prepare("SELECT * FROM areas ORDER BY name").all();
+ const apartments=db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id DESC`).all();
+ const tenants=db.prepare(`SELECT t.*,a.number apartment,a.area_id FROM tenants t LEFT JOIN apartments a ON a.id=t.apartment_id ORDER BY t.id DESC`).all();
+ const payments=db.prepare(`SELECT p.*,t.name tenant FROM payments p LEFT JOIN tenants t ON t.id=p.tenant_id ORDER BY p.payment_date DESC,p.id DESC LIMIT 100`).all();
+ const documents=db.prepare("SELECT * FROM documents ORDER BY id DESC LIMIT 100").all();
+ const logs=db.prepare("SELECT * FROM logs ORDER BY id DESC LIMIT 150").all();
+ const stats=db.prepare(`SELECT COUNT(*) total,
  SUM(status='متاحة') available,
  SUM(status IN ('قريبة من التوفر','الحجز ينتهي قريباً')) soon,
  SUM(status='مؤجرة / محجوزة') rented,
- SUM(status='غير متاحة / صيانة') repair FROM apartments`).get(),{total:0,available:0,soon:0,rented:0,repair:0});
- const money=safe(()=>db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get(),{total:0});
+ SUM(status='غير متاحة / صيانة') repair FROM apartments`).get();
+ const money=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get();
  res.json({areas,apartments,tenants,payments,documents,logs,stats,money});
 });
 

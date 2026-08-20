@@ -1,6 +1,5 @@
 
-document.addEventListener("DOMContentLoaded",()=>{
-  const m=$("modal");
-  if(m){m.addEventListener("click",e=>{if(e.target===m)closeM()});}
-  document.addEventListener("keydown",e=>{if(e.key==="Escape" && $("modal")?.classList.contains("show"))closeM()});
-});
+/* Reliable confirmation helper: v5.18 backup UI must not depend on a missing function. */
+async function v58Confirm(title,message){
+  return window.confirm((title||"تأكيد")+"\n\n"+(message||"هل تريد المتابعة؟"));
+}
