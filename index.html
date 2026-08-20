@@ -560,6 +560,28 @@ button[onclick*="deletePhoto"], button[onclick*="deleteDocument"]{
 }
 </style>
 
+
+<style id="v539-luxury-logo">
+.v539-logo{
+  width:78px!important;
+  height:58px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+  border-radius:10px!important;
+  background:#111!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.18)!important;
+}
+.v539-logo img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  display:block!important;
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
@@ -573,8 +595,8 @@ async function doLogin(){try{let j=await fetch("/api/login",{method:"POST",heade
 async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
 function nav(p){page=p;search="";render()}
 function role(){return me.role==="owner"?"المالك":me.role==="admin"?"مسؤول النظام":"مستخدم عادي"}
-function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",security:"النسخ الاحتياطي والحماية",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo v513-logo3d">⌂</div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
-<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button><button class="${page==="security"?"active":""}" onclick="nav('security')">🔐 النسخ والحماية</button>${["owner","admin"].includes(me.role)?`<button class="${page==="chat"?"active":""}" onclick="nav('chat')">💬 المحادثة</button>`:""}<button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
+function shell(){let titles={home:"الرئيسية",apartments:"الشقق والعقارات",tenants:"المستأجرون والعقود",finance:"الدفعات والمالية",users:"المستخدمون والصلاحيات",logs:"سجل العمليات",security:"النسخ الاحتياطي والحماية",chat:"محادثة المالك وAdmin"};$("root").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo v513-logo3d v539-logo"><img src="/west-amman-luxury-logo.jpg" alt="عقارات عمان الغربية"></div><div><b>عقارات غرب عمّان</b><br><small>نظام الإدارة</small></div></div><div class="nav">
+<button class="${page==="home"?"active":""}" onclick="nav('home')">⌂ الرئيسية</button><button class="${page==="apartments"?"active":""}" onclick="nav('apartments')">▦ الشقق</button><button class="${page==="tenants"?"active":""}" onclick="nav('tenants')">♙ المستأجرون</button><button class="${page==="finance"?"active":""}" onclick="nav('finance')">د.أ المالية</button><button class="${page==="users"?"active":""}" onclick="nav('users')">◉ الصلاحيات</button><button class="${page==="logs"?"active":""}" onclick="nav('logs')">◷ السجل</button>${["owner","admin"].includes(me.role)?`<button class="${page==="chat"?"active":""}" onclick="nav('chat')">💬 المحادثة</button>`:""}<button onclick="logout()">↪ خروج</button></div></aside><main class="main"><div class="top"><h2>${titles[page]}</h2><div class="user">${role()} <div class="avatar">${me.role==="owner"?"♛":"●"}</div></div></div><div class="content">${view()}</div><footer>نظام إدارة عقارات غرب عمّان • PWA • SQLite</footer></main></div>`}
 function view(){return page==="home"?home():page==="apartments"?apartments():page==="tenants"?tenants():page==="finance"?finance():page==="users"?users():page==="chat"?chat():page==="security"?securityBackupPage():logs()}
 function home(){let s=D.stats||{};return `<div class="hero"><div><small>نسخة احترافية — كحلي وذهبي</small><h3>مرحباً بك في نظام إدارة عقارات غرب عمّان</h3><p>إدارة الشقق، المستأجرين، العقود، الدفعات، المستندات والصلاحيات.</p></div><button class="btn primary" onclick="nav('apartments')">إدارة العقارات</button></div><div class="stats"><div class="stat"><div class="n">${s.total||0}</div><div class="l">إجمالي الشقق</div></div><div class="stat"><div class="n">${s.available||0}</div><div class="l">متاحة</div></div><div class="stat"><div class="n">${s.soon||0}</div><div class="l">قريبة من التوفر</div></div><div class="stat"><div class="n">${s.rented||0}</div><div class="l">مؤجرة</div></div><div class="stat"><div class="n">${s.repair||0}</div><div class="l">صيانة</div></div><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">دفعات هذا الشهر د.أ</div></div></div><div class="panel"><div class="head"><h3>أحدث الشقق</h3><button class="btn ghost" onclick="nav('apartments')">عرض الكل</button></div><div class="cards">${D.apartments.slice(0,6).map(card).join("")}</div></div><div class="panel"><div class="head"><h3>آخر العمليات</h3><button class="btn ghost" onclick="nav('logs')">السجل</button></div>${D.logs.slice(0,6).map(l=>`<div style="padding:10px 0;border-bottom:1px solid #eee7dc"><b>${esc(l.action)}</b> — ${esc(l.detail)} <small class="muted">${esc(l.created_at)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div>`}
 function badge(s){let c=s==="متاحة"?"available":s==="قريبة من التوفر"?"near":s==="الحجز ينتهي قريباً"?"soon":s==="مؤجرة / محجوزة"?"reserved":"repair";return `<span class="status-square ${c}">${esc(s)}</span>`}
