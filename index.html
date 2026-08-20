@@ -381,6 +381,62 @@ h4{
 }
 </style>
 
+
+<style id="v532-luxury-buttons">
+:root{
+  --lux-gold-1:#fff0a8;
+  --lux-gold-2:#d9ad3d;
+  --lux-gold-3:#9a6b16;
+  --lux-gold-dark:#6e4b0d;
+  --lux-text:#1a1205;
+}
+/* Luxury 3D gold buttons */
+button, .btn, a.btn{
+  background:linear-gradient(145deg,var(--lux-gold-1) 0%,#f4d875 28%,var(--lux-gold-2) 62%,var(--lux-gold-3) 100%) !important;
+  color:var(--lux-text) !important;
+  border:1px solid #8b641c !important;
+  border-radius:12px !important;
+  font-weight:900 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    inset 0 -2px 0 rgba(91,57,6,.28),
+    0 3px 0 var(--lux-gold-dark),
+    0 6px 12px rgba(75,48,8,.25) !important;
+  text-shadow:0 1px 0 rgba(255,255,255,.45);
+  transition:transform .12s ease,box-shadow .12s ease,filter .12s ease !important;
+}
+button:hover, .btn:hover, a.btn:hover{
+  filter:brightness(1.04) saturate(1.05);
+  transform:translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    inset 0 -2px 0 rgba(91,57,6,.25),
+    0 4px 0 var(--lux-gold-dark),
+    0 8px 16px rgba(75,48,8,.28) !important;
+}
+button:active, .btn:active, a.btn:active{
+  transform:translateY(2px);
+  box-shadow:
+    inset 0 2px 3px rgba(75,48,8,.25),
+    0 1px 0 var(--lux-gold-dark),
+    0 3px 7px rgba(75,48,8,.2) !important;
+}
+button:disabled, .btn:disabled{
+  opacity:.65;
+  transform:none;
+  filter:grayscale(.15);
+}
+/* Keep destructive/status semantic buttons recognizable */
+.btn.danger, button.danger{
+  background:linear-gradient(145deg,#ffd0c8,#e78b7c,#a33a2d) !important;
+  color:#1a0000 !important;
+}
+.wa-btn{
+  background:linear-gradient(145deg,#eaf8d7,#b9dc79,#6f9c35) !important;
+  color:#102000 !important;
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>

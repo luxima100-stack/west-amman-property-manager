@@ -92,6 +92,13 @@ CREATE TABLE IF NOT EXISTS users(
  active INTEGER NOT NULL DEFAULT 1,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS user_permissions(
+ user_id INTEGER NOT NULL,
+ permission TEXT NOT NULL,
+ enabled INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(user_id, permission),
+ FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS areas(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  name TEXT UNIQUE NOT NULL
@@ -318,12 +325,37 @@ app.get("/api/bootstrap",auth,(req,res)=>{
  res.json({areas,apartments,tenants,payments,documents,logs,stats,money});
 });
 
+
+const ADMIN_PERMISSIONS=["apartments","tenants","finance","chat","logs"];
+function hasPerm(user,perm){
+  if(user?.role==="owner") return true;
+  if(user?.role!=="admin") return false;
+  return !!db.prepare("SELECT 1 FROM user_permissions WHERE user_id=? AND permission=? AND enabled=1").get(user.id,perm);
+}
+function permissionForPath(path){
+  if(path.includes("/api/apartments") || path.includes("/api/documents")) return "apartments";
+  if(path.includes("/api/tenants")) return "tenants";
+  if(path.includes("/api/payments")) return "finance";
+  if(path.includes("/api/messages")) return "chat";
+  if(path.includes("/api/logs")) return "logs";
+  return null;
+}
+function writeOKFor(req){
+  if(req.user.role==="owner") return true;
+  if(req.user.role!=="admin") return false;
+  const p=permissionForPath(req.path);
+  return p ? hasPerm(req.user,p) : false;
+}
+function deleteOKFor(req){
+  return req.user.role==="owner";
+}
+
 app.get("/api/users",auth,(req,res)=>{
- if(!deleteOK(req.user.role)) return res.status(403).json({error:"للمالك فقط"});
+ if(!deleteOKFor(req)) return res.status(403).json({error:"للمالك فقط"});
  res.json(db.prepare("SELECT id,username,role,active,created_at FROM users ORDER BY id").all());
 });
 app.post("/api/users",auth,(req,res)=>{
- if(!deleteOK(req.user.role)) return res.status(403).json({error:"للمالك فقط"});
+ if(!deleteOKFor(req)) return res.status(403).json({error:"للمالك فقط"});
  const {username,password,role}=req.body;
  if(!username||!password||!["owner","admin","user"].includes(role)) return res.status(400).json({error:"بيانات المستخدم ناقصة"});
  try{
@@ -332,15 +364,34 @@ app.post("/api/users",auth,(req,res)=>{
  }catch{res.status(409).json({error:"اسم المستخدم موجود مسبقاً"})}
 });
 app.put("/api/users/:id",auth,(req,res)=>{
- if(!deleteOK(req.user.role)) return res.status(403).json({error:"للمالك فقط"});
+ if(!deleteOKFor(req)) return res.status(403).json({error:"للمالك فقط"});
  const {role,active,password}=req.body;
  if(password) db.prepare("UPDATE users SET role=?,active=?,password_hash=? WHERE id=?").run(role,active?1:0,bcrypt.hashSync(password,12),req.params.id);
  else db.prepare("UPDATE users SET role=?,active=? WHERE id=?").run(role,active?1:0,req.params.id);
  log("تعديل مستخدم",`تم تعديل المستخدم ${req.params.id}`,req.user.username);res.json({ok:true});
 });
 
+app.get("/api/admin-permissions",auth,(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
+  const users=db.prepare("SELECT id,username,role,active FROM users WHERE role='admin' ORDER BY id").all();
+  const rows=db.prepare("SELECT user_id,permission FROM user_permissions WHERE enabled=1").all();
+  const map={}; rows.forEach(r=>(map[r.user_id]??=[]).push(r.permission));
+  res.json({users:users.map(u=>({...u,permissions:map[u.id]||[]}))});
+});
+app.put("/api/admin-permissions/:id",auth,(req,res)=>{
+  if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
+  const id=Number(req.params.id), {permission,enabled}=req.body||{};
+  if(!ADMIN_PERMISSIONS.includes(permission)) return res.status(400).json({error:"صلاحية غير معروفة"});
+  const u=db.prepare("SELECT id,role FROM users WHERE id=?").get(id);
+  if(!u || u.role!=="admin") return res.status(404).json({error:"مستخدم Admin غير موجود"});
+  db.prepare("INSERT INTO user_permissions(user_id,permission,enabled) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET enabled=excluded.enabled").run(id,permission,enabled?1:0);
+  log("تعديل صلاحية Admin",`تم ${enabled?'تفعيل':'إلغاء'} صلاحية ${permission} للمستخدم ${id}`,req.user.username);
+  res.json({ok:true});
+});
+
+
 app.post("/api/apartments",auth,(req,res)=>{
-  if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+  if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
   const x=req.body||{};
   if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
   const code=String(x.code||x.number).trim();
@@ -352,7 +403,7 @@ app.post("/api/apartments",auth,(req,res)=>{
 });
 
 app.put("/api/apartments/:id",auth,(req,res)=>{
-  if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
+  if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
   const x=req.body||{};
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
   db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=? WHERE id=?`)
@@ -362,21 +413,21 @@ app.put("/api/apartments/:id",auth,(req,res)=>{
 
 app.delete("/api/apartments/:id",auth,(req,res)=>{
  autoBackup("before-apartment-delete");
- if(!deleteOK(req.user.role)) return res.status(403).json({error:"الحذف متاح للمالك فقط"});
+ if(!deleteOKFor(req)) return res.status(403).json({error:"الحذف متاح للمالك فقط"});
  const a=db.prepare("SELECT number FROM apartments WHERE id=?").get(req.params.id);
  db.prepare("DELETE FROM apartments WHERE id=?").run(req.params.id);
  log("حذف شقة",`تم حذف الشقة ${a?.number||req.params.id}`,req.user.username);res.json({ok:true});
 });
 
 app.post("/api/tenants",auth,(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const x=req.body||{};
  const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,notes,renewal_enabled)
  VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1);
  log("إضافة مستأجر",`تمت إضافة المستأجر ${x.name}`,req.user.username);res.json({ok:true,id:r.lastInsertRowid});
 });
 app.put("/api/tenants/:id",auth,(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
  const x=req.body||{};
  db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,notes=?,renewal_enabled=? WHERE id=?`)
  .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
@@ -384,14 +435,14 @@ app.put("/api/tenants/:id",auth,(req,res)=>{
 });
 
 app.post("/api/payments",auth,(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const x=req.body;
  db.prepare("INSERT INTO payments(tenant_id,amount,payment_date,method,reference,notes) VALUES(?,?,?,?,?,?)").run(x.tenant_id||null,x.amount,x.payment_date,x.method||"نقدي",x.reference||"",x.notes||"");
  log("إضافة دفعة",`تم تسجيل دفعة بقيمة ${x.amount}`,req.user.username);res.json({ok:true});
 });
 
 app.post("/api/apartments/:id/photos",auth,upload.array("photos",30),(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const a=db.prepare("SELECT id,number FROM apartments WHERE id=?").get(req.params.id);
  if(!a) return res.status(404).json({error:"الشقة غير موجودة"});
  const files=req.files||[];
@@ -409,7 +460,7 @@ app.post("/api/apartments/:id/photos",auth,upload.array("photos",30),(req,res)=>
 
 
 app.post("/api/apartments/:id/video",auth,videoUpload.single("video"),(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const a=db.prepare("SELECT id,number FROM apartments WHERE id=?").get(req.params.id);
  if(!a) { if(req.file) try{fs.unlinkSync(req.file.path)}catch{}; return res.status(404).json({error:"الشقة غير موجودة"}); }
  if(!req.file) return res.status(400).json({error:"اختر فيديو"});
@@ -422,7 +473,7 @@ app.post("/api/apartments/:id/video",auth,videoUpload.single("video"),(req,res)=
 
 app.delete("/api/documents/:id",auth,(req,res)=>{
  autoBackup("before-document-delete");
- if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية الحذف"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية الحذف"});
  const d=db.prepare("SELECT * FROM documents WHERE id=?").get(req.params.id);
  if(!d) return res.status(404).json({error:"الصورة غير موجودة"});
  db.prepare("DELETE FROM documents WHERE id=?").run(d.id);
@@ -432,7 +483,7 @@ app.delete("/api/documents/:id",auth,(req,res)=>{
 });
 
 app.post("/api/documents",auth,upload.single("file"),(req,res)=>{
- if(!writeOK(req.user.role)) return res.status(403).json({error:"صلاحية العرض فقط"});
+ if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  if(!req.file) return res.status(400).json({error:"اختر ملفاً"});
  db.prepare("INSERT INTO documents(apartment_id,tenant_id,filename,original_name,kind) VALUES(?,?,?,?,?)")
  .run(req.body.apartment_id||null,req.body.tenant_id||null,req.file.filename,req.file.originalname,req.body.kind||"مستند");
