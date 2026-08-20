@@ -522,6 +522,28 @@ button:disabled, .btn:disabled{
 }
 </style>
 
+
+<style id="v535-photo-delete-soft">
+/* v5.35 — subtle photo delete control */
+.photo-delete, .delete-photo, .photo-card .danger, .photo-item .danger,
+button[onclick*="deletePhoto"], button[onclick*="deleteDocument"]{
+  background:rgba(190,105,95,.22)!important;
+  color:#6d2d28!important;
+  border:1px solid rgba(150,76,68,.28)!important;
+  box-shadow:0 1px 3px rgba(90,45,40,.10)!important;
+  border-radius:8px!important;
+  font-size:15px!important;
+  font-weight:600!important;
+  padding:6px 10px!important;
+  text-shadow:none!important;
+}
+.photo-delete:hover, .delete-photo:hover, .photo-card .danger:hover, .photo-item .danger:hover{
+  background:rgba(190,105,95,.30)!important;
+  transform:none!important;
+  box-shadow:0 2px 5px rgba(90,45,40,.12)!important;
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
