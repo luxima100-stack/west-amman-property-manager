@@ -15,10 +15,25 @@ const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_BEFORE_INTERNET_DEPLOYME
 const DB_FILE = path.join(__dirname, "data.db");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 fs.mkdirSync(UPLOAD_DIR, {recursive:true});
+const BACKUP_DIR = path.join(__dirname, "backups");
+fs.mkdirSync(BACKUP_DIR, {recursive:true});
+function autoBackup(reason="auto"){
+  try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch(e){}
+  const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+  const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
+  const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
+  try{ execFile("tar",["-czf",out,"data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"],{cwd:__dirname},(err)=>{
+    if(err) return;
+    try{ const files=fs.readdirSync(BACKUP_DIR).filter(f=>f.endsWith(".tar.gz")).sort(); while(files.length>10){ const old=files.shift(); try{fs.unlinkSync(path.join(BACKUP_DIR,old))}catch(e){} } }catch(e){}
+  }); }catch(e){}
+}
+
 
 const db = new Database(DB_FILE);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+autoBackup("startup");
+setInterval(()=>autoBackup("scheduled"),24*60*60*1000);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(
@@ -290,6 +305,7 @@ app.put("/api/apartments/:id",auth,(req,res)=>{
 });
 
 app.delete("/api/apartments/:id",auth,(req,res)=>{
+ autoBackup("before-apartment-delete");
  if(!deleteOK(req.user.role)) return res.status(403).json({error:"الحذف متاح للمالك فقط"});
  const a=db.prepare("SELECT number FROM apartments WHERE id=?").get(req.params.id);
  db.prepare("DELETE FROM apartments WHERE id=?").run(req.params.id);
@@ -349,6 +365,7 @@ app.post("/api/apartments/:id/video",auth,videoUpload.single("video"),(req,res)=
 });
 
 app.delete("/api/documents/:id",auth,(req,res)=>{
+ autoBackup("before-document-delete");
  if(!writeOK(req.user.role)) return res.status(403).json({error:"لا تملك صلاحية الحذف"});
  const d=db.prepare("SELECT * FROM documents WHERE id=?").get(req.params.id);
  if(!d) return res.status(404).json({error:"الصورة غير موجودة"});
@@ -386,23 +403,14 @@ app.post("/api/messages",auth,(req,res)=>{
 });
 
 app.delete("/api/logs",auth,(req,res)=>{
+ autoBackup("before-log-delete");
   if(req.user.role!=="owner") return res.status(403).json({error:"مسح السجل متاح للمالك فقط"});
   db.prepare("DELETE FROM logs").run();
   log("مسح السجل","تم مسح سجل العمليات بالكامل",req.user.username);
   res.json({ok:true});
 });
 
-app.get("/api/export/full-backup",auth,(req,res)=>{
- if(req.user.role!=="owner") return res.status(403).json({error:"حفظ النسخة الكاملة متاح للمالك فقط"});
- try{ db.pragma("wal_checkpoint(TRUNCATE)"); }catch(e){}
- const stamp=new Date().toISOString().replace(/[:.]/g,"-");
- const out=path.join("/tmp",`west-amman-backup-${stamp}.tar.gz`);
- const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
- execFile("tar",["-czf",out,...items],{cwd:__dirname},(err)=>{
-   if(err) return res.status(500).json({error:"تعذر إنشاء النسخة الاحتياطية"});
-   res.download(out,"west-amman-backup.tar.gz",()=>{try{fs.unlinkSync(out)}catch(e){}});
- });
-});
+app.get("/api/export/full-backup",auth,(req,res)=>res.status(410).json({error:"تم استبدال الحفظ اليدوي بالنسخ الاحتياطي التلقائي"}));
 
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
  const rows=db.prepare(`SELECT a.number,ar.name area,a.status,a.rent,a.rooms,a.baths,a.floor,a.size_m2,a.notes FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id`).all();

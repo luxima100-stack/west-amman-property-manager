@@ -606,7 +606,7 @@ async function clearLogs(){if(me.role!=='owner')return;if(!(await v58Confirm('ت
 /* v5.13 final overrides: one authoritative implementation */
 function home(){let s=D.stats||{};return `<div class="hero hero-v513"><div class="hero-copy"><div class="hero-brand"><div class="v513-logo3d">⌂</div><div><small>نظام احترافي لإدارة العقارات</small><h3>عقارات غرب عمّان</h3></div></div><p>إدارة الشقق والمستأجرين والعقود والدفعات والوثائق بطريقة فخمة ومنظمة.</p><button class="btn primary" onclick="nav('apartments')">إدارة العقارات</button></div></div><div class="stats"><div class="stat"><div class="n">${s.total||0}</div><div class="l">إجمالي الشقق</div></div><div class="stat"><div class="n">${s.available||0}</div><div class="l">متاحة</div></div><div class="stat"><div class="n">${s.soon||0}</div><div class="l">قريبة من التوفر</div></div><div class="stat"><div class="n">${s.rented||0}</div><div class="l">مؤجرة</div></div><div class="stat"><div class="n">${s.repair||0}</div><div class="l">صيانة</div></div><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">دفعات هذا الشهر د.أ</div></div></div><div class="panel"><div class="head"><h3>أحدث الشقق</h3><button class="btn ghost" onclick="nav('apartments')">عرض الكل</button></div><div class="cards">${D.apartments.slice(0,6).map(card).join('')}</div></div><div class="panel"><div class="head"><h3>آخر العمليات</h3><button class="btn ghost" onclick="nav('logs')">السجل</button></div>${D.logs.slice(0,6).map(l=>`<div style="padding:10px 0;border-bottom:1px solid #eee7dc"><b>${esc(l.action)}</b> — ${esc(l.detail)} <small class="muted">${esc(l.created_at)}</small></div>`).join('')||'<div class="empty">لا توجد عمليات</div>'}</div>`}
 
-function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':''}</div><div class="toolbar v59-search"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="arooms" onchange="drawA()"><option value="">كل الغرف</option><option value="1">1 غرفة</option><option value="2">2 غرف</option><option value="3">3 غرف</option><option value="4">4 غرف</option></select><select id="art" onchange="drawA()"><option value="">كل أنواع الإيجار</option><option>يومي</option><option>شهري</option><option>سنوي</option></select><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join('')}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join('')}</select><button class="btn primary" onclick="v511OpenPriceRange()">💰 بحث من سعر إلى سعر</button><button class="btn ghost" onclick="resetApartmentSearch()">مسح البحث</button>${me.role==='owner'?'<button class="btn v513-backup-btn" onclick="downloadFullBackup()">💾 حفظ نسخة كاملة للموقع</button>':''}</div><div class="v513-export-note">النسخة الاحتياطية تحفظ قاعدة البيانات والصور والمستندات والملفات في ملف واحد، ويمكن استخدامها لاستعادة الموقع بعد أي تحديث.</div><div id="alist" class="cards" style="margin-top:16px"></div></div>`}
+function apartments(){return `<div class="panel"><div class="head"><h3>إدارة العقارات</h3>${me.role!=="user"?'<button class="btn primary" onclick="addA()">＋ إضافة شقة</button>':''}</div><div class="toolbar v59-search"><input id="aq" placeholder="بحث برقم الشقة أو المنطقة..." oninput="drawA()"><select id="arooms" onchange="drawA()"><option value="">كل الغرف</option><option value="1">1 غرفة</option><option value="2">2 غرف</option><option value="3">3 غرف</option><option value="4">4 غرف</option></select><select id="art" onchange="drawA()"><option value="">كل أنواع الإيجار</option><option>يومي</option><option>شهري</option><option>سنوي</option></select><select id="af" onchange="drawA()"><option value="">كل المناطق</option>${D.areas.map(a=>`<option>${esc(a.name)}</option>`).join('')}</select><select id="as" onchange="drawA()"><option value="">كل الحالات</option>${statuses.map(s=>`<option>${s}</option>`).join('')}</select><button class="btn primary" onclick="v511OpenPriceRange()">💰 بحث من سعر إلى سعر</button><button class="btn ghost" onclick="resetApartmentSearch()">مسح البحث</button></div><div id="alist" class="cards" style="margin-top:16px"></div></div>`}
 
 function editA(id){const a=D.apartments.find(x=>x.id===id),photos=D.documents.filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');modal(`<div class="modalhead"><h3>تفاصيل الشقة ${esc(a.number)}</h3><button class="btn ghost" onclick="closeM()">✕ إغلاق</button></div>${aForm(a)}${me.role==='owner'?`<div class="v55-share-row"><button class="btn wa-btn" onclick="shareApartmentDetails(${id})">🟢 WhatsApp — التفاصيل</button></div>`:''}<div class="panel" style="margin-top:14px;padding:14px"><div class="head"><h3>📷 صور الشقة</h3><span class="muted">${photos.length} صورة</span></div>${me.role==='owner'&&photos.length?`<button class="btn wa-btn" onclick="shareApartmentPhotos(${id})">🟢 WhatsApp — الصور</button>`:''}${me.role!=='user'?`<input id="apPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="uploadApartmentPhotos(${id})">`:''}<div id="photos_${id}" class="photos">${photos.length?photos.map((p,i)=>photoHtml(p,i)).join(''):'<div class="photoempty full">لا توجد صور لهذه الشقة</div>'}</div></div><div class="v513-export-note">🎥 تم إخفاء قسم الفيديو من تفاصيل الشقة حسب طلبك.</div><div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" onclick="saveA(${id})">حفظ التعديل</button>${me.role==='owner'?`<button class="btn danger" onclick="delA(${id})">حذف الشقة</button>`:''}</div>`) }
 
@@ -616,6 +616,58 @@ function addT(){modal(`<div class="modalhead"><h3>إضافة مستأجر وعق
 function toggleNewRenewal(btn){const on=btn.dataset.on!=='1';btn.dataset.on=on?'1':'0';btn.classList.toggle('renew-on',on);btn.classList.toggle('renew-off',!on);btn.innerHTML=`<span class="renew-dot"></span><span class="renew-label">${on?'قابل للتجديد':'غير قابل للتجديد'}</span>`}
 async function toggleRenewal(id,current){try{const t=D.tenants.find(x=>x.id===id);if(!t)return;await api('/api/tenants/'+id,{method:'PUT',body:JSON.stringify({name:t.name,apartment_id:t.apartment_id,phone:t.phone,national_id:t.national_id,status:t.status,contract_start:t.contract_start,contract_end:t.contract_end,monthly_rent:t.monthly_rent,deposit:t.deposit,notes:t.notes,renewal_enabled:!current})});await load();notify(!current?'تم تحويل المستأجر إلى قابل للتجديد':'تم تحويل المستأجر إلى غير قابل للتجديد')}catch(e){alert(e.message)}}
 async function downloadFullBackup(){if(me?.role!=='owner'){alert('حفظ النسخة الكاملة متاح للمالك فقط');return}if(!(await v58Confirm('حفظ نسخة كاملة','سيتم حفظ قاعدة البيانات والصور والمستندات والملفات الموجودة في الموقع في ملف نسخة احتياطية واحد.')))return;try{const r=await fetch('/api/export/full-backup',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('تعذر إنشاء النسخة الاحتياطية');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='west-amman-backup-'+new Date().toISOString().slice(0,10)+'.tar.gz';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);notify('تم حفظ النسخة الاحتياطية كاملة')}catch(e){alert(e.message)}}
+/* v5.14 WhatsApp details: direct WhatsApp text, no browser file-share dependency */
+function buildWhatsAppDetails(a){
+  const n=v=>String(v??'—');
+  const money=v=>Number(v||0).toLocaleString('ar-JO');
+  const lines=[
+    '╔══════════════════════════════╗',
+    '      🏠 عقارات غرب عمّان',
+    '      تفاصيل الشقة الرسمية',
+    '╚══════════════════════════════╝',
+    '',
+    `🔖 الكود: ${n(a.code||a.number)}`,
+    `🏢 رقم الشقة: ${n(a.number)}`,
+    `📍 المنطقة: ${n(a.area)}`,
+    `🟢 الحالة: ${n(a.status)}`,
+    '',
+    '📐 المواصفات',
+    `• الغرف: ${n(a.rooms)}`,
+    `• الحمامات: ${n(a.baths)}`,
+    `• الصالات: ${n(a.living_rooms)}`,
+    `• الصالونات: ${n(a.salons)}`,
+    `• البلكونات: ${n(a.balconies)}`,
+    `• المساحة: ${n(a.size_m2)} م²`,
+    `• الطابق: ${n(a.floor)}`,
+    '',
+    '💰 الأسعار',
+    `• يومي: ${money(a.daily_rent)} د.أ`,
+    `• شهري: ${money(a.monthly_rent||a.rent)} د.أ`,
+    `• سنوي: ${money(a.annual_rent)} د.أ`,
+    `• نوع الإيجار: ${n(a.rental_type)}`,
+    '',
+    '📅 التوفر',
+    `• موعد التوفر: ${n(a.available_date||a.availability_date)}`,
+    `• التنبيه قبل التوفر: ${n(a.availability_alert_days||0)} يوم`,
+    '',
+    '📝 الملاحظات',
+    n(a.notes),
+    '',
+    '━━━━━━━━━━━━━━━━━━━━',
+    'إدارة عقارات غرب عمّان'
+  ];
+  return lines.join('\n');
+}
+async function shareApartmentDetails(id){
+  try{
+    if(me?.role!=='owner'){alert('المشاركة متاحة للمالك فقط');return;}
+    const a=D.apartments.find(x=>x.id===id);
+    if(!a){alert('الشقة غير موجودة');return;}
+    const text=buildWhatsAppDetails(a);
+    const wa='https://wa.me/?text='+encodeURIComponent(text);
+    window.location.href=wa;
+  }catch(e){console.error(e);alert('تعذر فتح WhatsApp لإرسال التفاصيل.');}
+}
 </script>
 </body>
 </html>
