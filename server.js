@@ -366,29 +366,24 @@ if(!fs.existsSync(DEMO_SEED_MARKER)){
 }
 
 
-// v5.47 demo-photo repair: if the demo apartments already exist but their
+// v5.46 demo-photo repair: if the demo apartments already exist but their
 // local image files were lost/omitted during an earlier deploy, restore them
 // and ensure each demo apartment has its photo document. This runs safely on
 // every startup and never duplicates documents.
 try {
   const demoRows = db.prepare("SELECT id, number FROM apartments WHERE number LIKE 'D-%'").all();
   const docIns = db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)");
-  const demoFiles = fs.readdirSync(path.join(__dirname,'demo_photos')).filter(x=>/^demo-apartment-\d+\.jpg$/i.test(x)).sort();
-  const copyPhoto = (a, srcName, slot) => {
-    const src = path.join(__dirname,'demo_photos',srcName);
-    if(!fs.existsSync(src)) return;
-    const ext=path.extname(srcName).toLowerCase();
-    const filename=`demo-${a.id}-${slot}-${Date.now()}${ext}`;
-    fs.copyFileSync(src,path.join(UPLOAD_DIR,filename));
-    db.prepare("INSERT INTO documents(apartment_id,filename,original_name,kind) VALUES(?,?,?,?)").run(a.id,filename,srcName,"صورة شقة");
-  };
   for (const a of demoRows) {
-    let photos = db.prepare("SELECT id FROM documents WHERE apartment_id=? AND kind='صورة شقة'").all(a.id);
-    const idx=Math.max(0,parseInt(String(a.number).replace(/\D/g,''),10)-101);
-    for(let slot=photos.length; slot<4; slot++){
-      const srcName=demoFiles[(idx+slot)%demoFiles.length];
-      copyPhoto(a,srcName,slot+1);
-    }
+    const m = String(a.number||'').match(/^D-(\\d+)$/);
+    if (!m) continue;
+    const idx = Number(m[1]) - 100;
+    if (!(idx >= 1 && idx <= 12)) continue;
+    const filename = `demo-apartment-${String(idx).padStart(2,'0')}.jpg`;
+    const src = path.join(__dirname,'demo_photos',filename);
+    const dst = path.join(UPLOAD_DIR,filename);
+    if (fs.existsSync(src) && !fs.existsSync(dst)) fs.copyFileSync(src,dst);
+    const existing = db.prepare("SELECT id FROM documents WHERE apartment_id=? AND kind='صورة شقة' AND filename=? LIMIT 1").get(a.id,filename);
+    if (fs.existsSync(dst) && !existing) docIns.run(a.id,filename,`صورة تجريبية ${idx}`,'صورة شقة');
   }
 } catch (e) { console.error('demo photo repair failed:', e); }
 
@@ -396,7 +391,7 @@ app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.47.0"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.46.1"}));
 
 
 app.get("/",(req,res)=>{
@@ -441,7 +436,7 @@ function log(action,detail,who){db.prepare("INSERT INTO logs(action,detail,who) 
 app.post("/api/login",(req,res)=>{
  const {username,password}=req.body||{};
  const u=db.prepare("SELECT * FROM users WHERE username=? AND active=1").get(username);
- if(!u || !["owner","admin"].includes(u.role) || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
+ if(!u || !bcrypt.compareSync(password||"",u.password_hash)) return res.status(401).json({error:"اسم المستخدم أو كلمة المرور غير صحيحة"});
  const token=jwt.sign({id:u.id,username:u.username,role:u.role},JWT_SECRET,{expiresIn:"7d"});
  const permissions=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(u.id).map(x=>x.permission); res.json({token,user:{id:u.id,username:u.username,role:u.role,permissions}});
 });
