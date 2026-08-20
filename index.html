@@ -1523,16 +1523,23 @@ function home(){
     <div class="lux-section-head"><div><small>آخر الإضافات</small><h3>أحدث الشقق</h3></div></div>
     <div class="lux-latest-grid">
       ${latest.length?latest.map(a=>`
-        <button class="lux-property" onclick="editA(${a.id})">
+        <div class="lux-property">
+          <div onclick="editA(${a.id})" style="cursor:pointer">
           ${(()=>{const p=(D.documents||[]).find(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');return p?`<img src="/uploads/${encodeURIComponent(p.filename)}" alt="شقة ${esc(a.number)}">`:`<div class="lux-property-empty">⌂</div>`})()}
-          <div>
-            <b>شقة ${esc(a.number)}</b>
-            <small>${esc(a.area||'')}</small>
-            <div class="lux-prop-meta"><span>🛏 ${a.rooms||0} غرف</span><span>🛁 ${a.baths||0} حمام</span><span>📐 ${a.size_m2||0} م²</span></div>
-            ${me?.role==='owner'?`<div class="lux-prop-price">💰 ${Number(v511Price(a,a.rental_type||'شهري')).toLocaleString()} د.أ / ${esc(a.rental_type||'شهري')}</div>`:''}
           </div>
-          <span>${badge(a.status)}</span>
-        </button>`).join(''):'<div class="empty">لا توجد شقق مضافة بعد</div>'}
+          <div class="lux-prop-body">
+            <b>🏠 شقة ${esc(a.number)}</b>
+            <small>📍 ${esc(a.area||'غير محدد')}</small>
+            <div class="lux-prop-meta"><span>🛏️ ${a.rooms||0} غرف</span><span>🛁 ${a.baths||0} حمامات</span><span>🛋️ ${a.salons||a.living_rooms||0} صالات</span><span>🌿 ${a.balconies||0} بلكونات</span><span>📐 ${a.size_m2||0} م²</span><span>🏢 طابق ${a.floor||0}</span></div>
+            ${me?.role==='owner'?`<div class="lux-prop-price">💰 ${Number(v511Price(a,a.rental_type||'شهري')).toLocaleString()} د.أ / ${esc(a.rental_type||'شهري')}</div>`:''}
+            <div class="lux-prop-count">📷 ${(D.documents||[]).filter(d=>d.apartment_id===a.id&&d.kind==='صورة شقة').length} صور</div>
+          </div>
+          <div class="lux-prop-status">${badge(a.status)}</div>
+          <div class="lux-prop-actions">
+            <button class="btn ghost" type="button" onclick="editA(${a.id})">🔎 التفاصيل</button>
+            ${me?.role==='owner'?`<button class="v55-share-btn v55-share-details" type="button" onclick="shareApartmentDetails(${a.id})">📝 إرسال التفاصيل</button><button class="v55-share-btn v55-share-photos" type="button" onclick="shareApartmentPhotos(${a.id})">🖼️ إرسال الصور</button>`:''}
+          </div>
+        </div>`).join(''):'<div class="empty">لا توجد شقق مضافة بعد</div>'}
     </div>
   </section>`;
 }
@@ -1645,3 +1652,18 @@ html,body{min-width:0;overflow-x:hidden}.content{width:100%}.panel,.card,.stat{m
 <div id="location-feature-disabled" hidden></div>
 </body>
 </html>
+<style id="v5-46-4-card-final">
+.lux-property{cursor:default!important;box-shadow:0 4px 12px rgba(31,20,9,.07)!important}
+.lux-property>div:first-child{cursor:pointer!important}
+.lux-prop-body{padding:10px 12px 6px!important}
+.lux-property b{font-size:17px!important;line-height:1.35!important}
+.lux-property small{font-size:12px!important;line-height:1.7!important}
+.lux-property .lux-prop-meta{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));justify-content:initial!important;gap:5px 8px!important;font-size:12px!important;line-height:1.65!important}
+.lux-prop-count{font-size:11px;color:#777;margin-top:5px}
+.lux-prop-status{width:100%;padding:6px 10px 4px!important;display:flex!important;justify-content:center!important;align-items:center!important}
+.lux-prop-status .status-square{width:100%!important;text-align:center!important;justify-content:center!important;font-size:11px!important;padding:5px 7px!important}
+.lux-prop-actions{display:flex!important;gap:5px!important;padding:5px 10px 10px!important;flex-wrap:nowrap!important}
+.lux-prop-actions .btn,.lux-prop-actions .v55-share-btn{font-size:11px!important;padding:6px 7px!important;min-height:31px!important;flex:1 1 0!important;white-space:nowrap!important;box-shadow:0 2px 5px rgba(20,16,10,.08)!important}
+@media(max-width:600px){
+ .lux-property b{font-size:15px!important}.lux-property small{font-size:11px!important}.lux-property .lux-prop-meta{font-size:10.5px!important;gap:3px 5px!important}.lux-prop-price{font-size:13px!important}.lux-prop-count{font-size:10px}.lux-prop-status .status-square{font-size:10px!important;padding:4px 5px!important}.lux-prop-actions{gap:4px!important;padding:4px 7px 8px!important}.lux-prop-actions .btn,.lux-prop-actions .v55-share-btn{font-size:9px!important;padding:5px 5px!important;min-height:28px!important}}
+</style>
