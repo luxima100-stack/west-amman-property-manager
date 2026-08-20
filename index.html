@@ -14,6 +14,33 @@
 .photo-bulk-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
 .photo-select{position:absolute;top:7px;right:7px;z-index:3;background:#fffdf8dd;border-radius:10px;padding:5px 7px;font-size:12px;font-weight:700;display:flex;gap:4px;align-items:center}
 .photo{position:relative}
+
+/* v5.41.0 FINAL UI correction — remove the texts marked in blue in the supplied screenshot and enlarge apartment-card text. */
+.lux-hide-marked{display:none!important}
+.lux-hero-copy{display:none!important}
+.lux-hero-content{justify-content:center;padding:0!important}
+.lux-hero-mark{display:none!important}
+.lux-hero-overlay{background:linear-gradient(90deg,#050b12a8,#07111b44 55%,#07111b22)!important}
+.lux-topbar .lux-brand strong,.lux-topbar .lux-brand small,.lux-topbar .lux-owner b{display:none!important}
+.lux-topbar .lux-brand img{width:58px!important;height:58px!important}
+.lux-alert-strip small{display:none!important}
+.lux-stat span{font-size:15px!important;font-weight:800!important;color:#f1f3f5!important}
+.lux-stat b{font-size:28px!important}
+.lux-property b{font-size:21px!important;line-height:1.45!important}
+.lux-property small{font-size:16px!important;line-height:1.9!important;font-weight:800!important;color:#26323b!important}
+.lux-property .lux-prop-meta{font-size:15px!important;line-height:1.8!important;color:#17212b!important;font-weight:900!important}
+.lux-property .lux-prop-price{font-size:19px!important;font-weight:900!important}
+.lux-property .status-square{font-size:14px!important;padding:7px 12px!important}
+@media(max-width:600px){
+ .lux-topbar .lux-brand img{width:48px!important;height:48px!important}
+ .lux-stat span{font-size:13px!important}
+ .lux-stat b{font-size:23px!important}
+ .lux-property b{font-size:21px!important}
+ .lux-property small{font-size:16px!important}
+ .lux-property .lux-prop-meta{font-size:14px!important}
+ .lux-property .lux-prop-price{font-size:19px!important}
+}
+
 </style>
 
 <style id="v4-enhancements">
@@ -1295,7 +1322,7 @@ function homeAccessControl(){
 </style>
 
 <script id="v539-luxury-dashboard">
-/* v5.40.0 — final luxury West Amman dashboard inspired by the supplied reference image.
+/* v5.41.0 — final UI correction inspired by the supplied reference image.
    Offices and lands are intentionally absent; the public-facing hero only mentions apartments and villas. */
 
 function toggleLuxMenu(force){
@@ -1364,64 +1391,31 @@ function shell(){
 function home(){
   const s=D?.stats||{};
   const total=Number(s.total||0), rented=Number(s.rented||0), available=Number(s.available||0);
-  const soon=Number(s.soon||0), repair=Number(s.repair||0);
-  const money=Number(D?.money?.total||0);
+  const soon=Number(s.soon||0), money=Number(D?.money?.total||0);
   const latest=(D?.apartments||[]).slice(0,6);
-
   return `
-  <section class="lux-hero">
+  <section class="lux-hero" aria-label="واجهة عقارات عمان الغربية">
     <div class="lux-hero-bg"></div>
     <div class="lux-hero-overlay"></div>
-    <div class="lux-hero-content">
-      <div class="lux-hero-copy">
-        <h1>عقارات عمان الغربية</h1>
-        <h2>خيارك الأفضل .. لحياة أرقى</h2>
-        <div class="lux-gold-line"></div>
-        <div class="lux-types"><span>شقق</span><i>|</i><span>فلل</span></div>
-        <button class="lux-hero-btn" onclick="luxNav('apartments')">استعراض الشقق <span>←</span></button>
-      </div>
-      <div class="lux-hero-mark">
-        <img src="/hero-realestate.svg" alt="عقارات عمان الغربية">
-      </div>
-    </div>
   </section>
-
   <section class="lux-stats">
-    <div class="lux-stat">
-      <div class="lux-stat-icon">▥</div><div><b>${total.toLocaleString()}</b><span>إجمالي الشقق</span></div>
-    </div>
-    <div class="lux-stat">
-      <div class="lux-stat-icon">🔑</div><div><b>${rented.toLocaleString()}</b><span>المؤجرة / المحجوزة</span></div>
-    </div>
-    <div class="lux-stat">
-      <div class="lux-stat-icon">⌂</div><div><b>${available.toLocaleString()}</b><span>الشقق المتاحة</span></div>
-    </div>
-    <div class="lux-stat lux-stat-alert" onclick="luxNav('apartments')">
-      <div class="lux-stat-icon">🔔</div><div><b>${soon.toLocaleString()}</b><span>قريبة من التوفر</span></div>
-    </div>
-    <div class="lux-stat">
-      <div class="lux-stat-icon">د.أ</div><div><b>${money.toLocaleString()}</b><span>دفعات هذا الشهر</span></div>
-    </div>
+    <div class="lux-stat"><div class="lux-stat-icon">▥</div><div><b>${total.toLocaleString()}</b><span>إجمالي الشقق</span></div></div>
+    <div class="lux-stat"><div class="lux-stat-icon">🔑</div><div><b>${rented.toLocaleString()}</b><span>المؤجرة / المحجوزة</span></div></div>
+    <div class="lux-stat"><div class="lux-stat-icon">⌂</div><div><b>${available.toLocaleString()}</b><span>الشقق المتاحة</span></div></div>
+    <div class="lux-stat lux-stat-alert" onclick="luxNav('apartments')"><div class="lux-stat-icon">🔔</div><div><b>${soon.toLocaleString()}</b><span>قريبة من التوفر</span></div></div>
+    <div class="lux-stat"><div class="lux-stat-icon">د.أ</div><div><b>${money.toLocaleString()}</b><span>دفعات هذا الشهر</span></div></div>
   </section>
-
-  ${soon>0?`<button class="lux-alert-strip" onclick="luxNav('apartments')"><span>🔴</span><b>${soon} شقة تحتاج متابعة قرب التوفر</b><small>اضغط لعرض الشقق</small></button>`:''}
-
+  ${soon>0?`<button class="lux-alert-strip" onclick="luxNav('apartments')"><span>🔴</span><b>${soon} شقة ستصبح متاحة قريباً</b></button>`:''}
   <section class="lux-quick">
-    <div class="lux-section-head">
-      <div><small>إدارة سريعة</small><h3>الوصول إلى عقاراتك بسهولة</h3></div>
-      <button class="lux-outline-btn" onclick="luxNav('apartments')">عرض جميع الشقق</button>
-    </div>
+    <div class="lux-section-head"><div><small>إدارة سريعة</small><h3>الوصول السريع</h3></div><button class="lux-outline-btn" onclick="luxNav('apartments')">عرض جميع الشقق</button></div>
     <div class="lux-quick-grid">
       <button onclick="luxNav('apartments')"><span>⌂</span><b>الشقق والعقارات</b><small>إضافة، تعديل، صور وتفاصيل</small></button>
       <button onclick="luxNav('tenants')"><span>♙</span><b>المستأجرون والعقود</b><small>متابعة العقود والحجوزات</small></button>
       <button onclick="luxNav('finance')"><span>د.أ</span><b>الدفعات والمالية</b><small>متابعة الدفعات الشهرية</small></button>
     </div>
   </section>
-
   <section class="lux-latest">
-    <div class="lux-section-head">
-      <div><small>آخر الإضافات</small><h3>أحدث الشقق</h3></div>
-    </div>
+    <div class="lux-section-head"><div><small>آخر الإضافات</small><h3>أحدث الشقق</h3></div></div>
     <div class="lux-latest-grid">
       ${latest.length?latest.map(a=>`
         <button class="lux-property" onclick="editA(${a.id})">
@@ -1437,6 +1431,7 @@ function home(){
     </div>
   </section>`;
 }
+
 </script>
 
 </body>
