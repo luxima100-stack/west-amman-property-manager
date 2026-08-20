@@ -1,4 +1,4 @@
-const CACHE='west-amman-v5-47-0';
+const CACHE='west-amman-v5-49-0';
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   const keys=await caches.keys();

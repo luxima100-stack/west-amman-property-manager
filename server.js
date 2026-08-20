@@ -99,6 +99,19 @@ CREATE TABLE IF NOT EXISTS user_permissions(
  PRIMARY KEY(user_id, permission),
  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS tasks(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ title TEXT NOT NULL,
+ description TEXT DEFAULT '',
+ assigned_to INTEGER,
+ due_date TEXT,
+ status TEXT NOT NULL DEFAULT 'معلقة',
+ created_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ completed_at TEXT,
+ FOREIGN KEY(assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+ FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 CREATE TABLE IF NOT EXISTS areas(
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  name TEXT UNIQUE NOT NULL
@@ -273,7 +286,8 @@ const upload = multer({
       cb(null,Date.now()+"-"+Math.random().toString(36).slice(2)+ext);
     }
   }),
-  limits:{fileSize:10*1024*1024}
+  limits:{fileSize:20*1024*1024},
+ fileFilter:(_req,file,cb)=>{const ok=[".jpg",".jpeg",".png",".webp"].includes(path.extname(file.originalname).toLowerCase());cb(ok?null:new Error("يسمح فقط بصور JPG وPNG وWEBP"),ok);}
 });
 
 
@@ -478,7 +492,8 @@ app.get("/api/bootstrap",auth,(req,res)=>{
  const paidRent=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments`).get().total;
  const commissionIncome=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM accounting_entries WHERE type='income' AND category='عمولة'`).get().total;
  const netProfit=Number(paidRent||0)+Number(acct.income||0)-Number(acct.expenses||0);
- res.json({areas,apartments,tenants,payments,documents,logs,stats,money,accounting,accountingSummary:{income:Number(acct.income||0)+Number(paidRent||0),expenses:Number(acct.expenses||0),deposits:Number(acct.deposits||0),netProfit:Number(netProfit)}});
+ const tasks=db.prepare(`SELECT t.*,a.username assigned_username,c.username creator_username FROM tasks t LEFT JOIN users a ON a.id=t.assigned_to LEFT JOIN users c ON c.id=t.created_by ORDER BY CASE WHEN t.status='معلقة' THEN 0 ELSE 1 END,t.due_date IS NULL,t.due_date,t.id DESC LIMIT 200`).all();
+ res.json({areas,apartments,tenants,payments,documents,logs,stats,money,accounting,accountingSummary:{income:Number(acct.income||0)+Number(paidRent||0),expenses:Number(acct.expenses||0),deposits:Number(acct.deposits||0),netProfit:Number(netProfit)},tasks});
 });
 
 
@@ -507,6 +522,30 @@ function deleteOKFor(req){
   return req.user.role==="owner";
 }
 
+app.put("/api/admins/:id/password",auth,(req,res)=>{
+ if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط يستطيع تغيير كلمة مرور Admin"});
+ const id=Number(req.params.id), newPassword=String(req.body?.newPassword||"");
+ if(newPassword.length<6) return res.status(400).json({error:"كلمة المرور يجب أن تكون 6 أحرف/أرقام على الأقل"});
+ const u=db.prepare("SELECT id,username FROM users WHERE id=? AND role=\'admin\'").get(id);
+ if(!u) return res.status(404).json({error:"Admin غير موجود"});
+ db.prepare("UPDATE users SET password_hash=?,active=1 WHERE id=?").run(bcrypt.hashSync(newPassword,12),id);
+ log("تغيير كلمة مرور Admin",`تم تغيير كلمة مرور ${u.username}`,req.user.username); res.json({ok:true});
+});
+app.get("/api/tasks",auth,(req,res)=>{
+ if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"المهام للمالك وAdmin فقط"});
+ res.json(db.prepare(`SELECT t.*,a.username assigned_username,c.username creator_username FROM tasks t LEFT JOIN users a ON a.id=t.assigned_to LEFT JOIN users c ON c.id=t.created_by ORDER BY CASE WHEN t.status=\'معلقة\' THEN 0 ELSE 1 END,t.due_date IS NULL,t.due_date,t.id DESC`).all());
+});
+app.post("/api/tasks",auth,(req,res)=>{
+ if(req.user.role!=="owner") return res.status(403).json({error:"إضافة المهام للمالك فقط"});
+ const {title,description,assigned_to,due_date}=req.body||{}; if(!String(title||"").trim()) return res.status(400).json({error:"عنوان المهمة مطلوب"});
+ const ass=assigned_to?db.prepare("SELECT id FROM users WHERE id=? AND role=\'admin\' AND active=1").get(Number(assigned_to)):null; if(assigned_to&&!ass) return res.status(400).json({error:"اختر Admin فعالاً"});
+ const r=db.prepare("INSERT INTO tasks(title,description,assigned_to,due_date,status,created_by) VALUES(?,?,?,?,?,?)").run(String(title).trim(),String(description||""),ass?.id||null,due_date||null,"معلقة",req.user.id); log("إضافة مهمة",`تمت إضافة المهمة ${title}`,req.user.username); res.json({ok:true,id:r.lastInsertRowid});
+});
+app.put("/api/tasks/:id",auth,(req,res)=>{
+ if(!["owner","admin"].includes(req.user.role)) return res.status(403).json({error:"غير مصرح"}); const id=Number(req.params.id),t=db.prepare("SELECT * FROM tasks WHERE id=?").get(id); if(!t)return res.status(404).json({error:"المهمة غير موجودة"}); if(req.user.role==="admin"&&t.assigned_to!==req.user.id)return res.status(403).json({error:"هذه المهمة ليست مسندة إليك"}); const status=req.body?.status; if(!["معلقة","مكتملة"].includes(status))return res.status(400).json({error:"حالة المهمة غير صحيحة"}); db.prepare("UPDATE tasks SET status=?,completed_at=? WHERE id=?").run(status,status==="مكتملة"?new Date().toISOString():null,id); log("تحديث مهمة",`المهمة ${id}: ${status}`,req.user.username); res.json({ok:true});
+});
+app.delete("/api/tasks/:id",auth,(req,res)=>{if(req.user.role!=="owner")return res.status(403).json({error:"حذف المهام للمالك فقط"});db.prepare("DELETE FROM tasks WHERE id=?").run(Number(req.params.id));res.json({ok:true});});
+
 app.get("/api/users",auth,(req,res)=>{
  if(!deleteOKFor(req)) return res.status(403).json({error:"للمالك فقط"});
  res.json(db.prepare("SELECT id,username,role,active,created_at FROM users ORDER BY id").all());
@@ -517,7 +556,7 @@ app.post("/api/users",auth,(req,res)=>{
  if(!username||!password||!["owner","admin","user"].includes(role)) return res.status(400).json({error:"بيانات المستخدم ناقصة"});
  try{
    db.prepare("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)").run(username,bcrypt.hashSync(password,12),role);
-   const id=db.prepare("SELECT id FROM users WHERE username=?").get(username)?.id; log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true,id});
+   const id=db.prepare("SELECT id FROM users WHERE username=?").get(username)?.id; if(role==="admin"&&id){const ins=db.prepare("INSERT OR IGNORE INTO user_permissions(user_id,permission,enabled) VALUES(?,?,1)"); for(const perm of ADMIN_PERMISSIONS) ins.run(id,perm);} log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true,id});
  }catch{res.status(409).json({error:"اسم المستخدم موجود مسبقاً"})}
 });
 app.put("/api/users/:id",auth,(req,res)=>{
@@ -868,4 +907,5 @@ app.get('/api/availability-dashboard', auth, (req,res)=>{
   res.json({count:alerts.length, alerts});
 });
 
+app.use((err,req,res,next)=>{if(err){console.error(err);return res.status(400).json({error:err.message||"حدث خطأ"});}next();});
 app.listen(PORT,"0.0.0.0",()=>console.log(`West Amman Property Manager: http://localhost:${PORT}`));
