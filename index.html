@@ -1256,7 +1256,7 @@ function homeAccessControl(){
 .lux-property{border:1px solid #e5dbc8;background:#fff;border-radius:15px;overflow:hidden;text-align:right;padding:0;display:flex;flex-direction:column}
 .lux-property img,.lux-property-empty{width:100%;height:150px;object-fit:cover;background:#101923}
 .lux-property-empty{display:grid;place-items:center;color:var(--lux-g2);font-size:38px}
-.lux-property>div{padding:10px 12px 5px}.lux-property b{display:block}.lux-property small{display:block;color:#7a858c;margin-top:4px}
+.lux-property>div{padding:11px 13px 7px}.lux-property b{display:block;font-size:18px;color:#17212b;font-weight:900;line-height:1.35}.lux-property small{display:block;color:#3f4b54;margin-top:6px;font-size:13px;font-weight:700;line-height:1.8}.lux-property .lux-prop-meta{display:flex;justify-content:space-between;gap:7px;flex-wrap:wrap;margin-top:7px;color:#4b555c;font-size:12px;font-weight:800}.lux-property .lux-prop-price{color:#a97621;font-size:16px;font-weight:900;margin-top:8px}.lux-property>span{padding:7px 13px 12px;align-self:flex-start}.lux-property .status-square{font-size:12px;padding:6px 10px}.lux-hero-copy .lux-kicker,.lux-hero-copy>p{display:none}.lux-hero-copy{max-width:700px}.lux-types{margin-top:12px;font-size:20px}.lux-hero-btn{margin-top:12px}.lux-brand img{object-fit:contain}.lux-page-title{display:none}.lux-content{padding-top:18px}
 .lux-property>span{padding:7px 12px 12px;align-self:flex-start}
 .lux-app footer{padding:15px;text-align:center;color:#8c8981;font-size:10px}
 
@@ -1270,6 +1270,8 @@ function homeAccessControl(){
   .lux-hero-mark{display:none}
 }
 @media(max-width:600px){
+  .lux-hero-copy{width:100%}.lux-hero h1{font-size:32px}.lux-hero h2{font-size:20px}.lux-hero-btn{padding:10px 16px}.lux-types{font-size:18px}
+  .lux-property b{font-size:19px}.lux-property small{font-size:14px}.lux-property .lux-prop-meta{font-size:13px}.lux-property .lux-prop-price{font-size:17px}
   .lux-topbar{height:70px;padding:0 10px}
   .lux-brand strong{font-size:13px}.lux-brand small{font-size:6px}
   .lux-brand img{width:38px;height:38px}
@@ -1293,7 +1295,7 @@ function homeAccessControl(){
 </style>
 
 <script id="v539-luxury-dashboard">
-/* v5.39.1 — luxury West Amman dashboard inspired by the supplied reference image.
+/* v5.40.0 — final luxury West Amman dashboard inspired by the supplied reference image.
    Offices and lands are intentionally absent; the public-facing hero only mentions apartments and villas. */
 
 function toggleLuxMenu(force){
@@ -1372,12 +1374,10 @@ function home(){
     <div class="lux-hero-overlay"></div>
     <div class="lux-hero-content">
       <div class="lux-hero-copy">
-        <div class="lux-kicker">WEST AMMAN REAL ESTATE</div>
         <h1>عقارات عمان الغربية</h1>
         <h2>خيارك الأفضل .. لحياة أرقى</h2>
         <div class="lux-gold-line"></div>
         <div class="lux-types"><span>شقق</span><i>|</i><span>فلل</span></div>
-        <p>إدارة احترافية لعقاراتك من مكان واحد، بتصميم فاخر وسهل الاستخدام.</p>
         <button class="lux-hero-btn" onclick="luxNav('apartments')">استعراض الشقق <span>←</span></button>
       </div>
       <div class="lux-hero-mark">
@@ -1426,7 +1426,12 @@ function home(){
       ${latest.length?latest.map(a=>`
         <button class="lux-property" onclick="editA(${a.id})">
           ${(()=>{const p=(D.documents||[]).find(d=>d.apartment_id===a.id&&d.kind==='صورة شقة');return p?`<img src="/uploads/${encodeURIComponent(p.filename)}" alt="شقة ${esc(a.number)}">`:`<div class="lux-property-empty">⌂</div>`})()}
-          <div><b>شقة ${esc(a.number)}</b><small>${esc(a.area||'')} • ${a.rooms||0} غرف • ${a.baths||0} حمام</small></div>
+          <div>
+            <b>شقة ${esc(a.number)}</b>
+            <small>${esc(a.area||'')}</small>
+            <div class="lux-prop-meta"><span>🛏 ${a.rooms||0} غرف</span><span>🛁 ${a.baths||0} حمام</span><span>📐 ${a.size_m2||0} م²</span></div>
+            ${me?.role==='owner'?`<div class="lux-prop-price">💰 ${Number(v511Price(a,a.rental_type||'شهري')).toLocaleString()} د.أ / ${esc(a.rental_type||'شهري')}</div>`:''}
+          </div>
           <span>${badge(a.status)}</span>
         </button>`).join(''):'<div class="empty">لا توجد شقق مضافة بعد</div>'}
     </div>
