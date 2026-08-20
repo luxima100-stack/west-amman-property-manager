@@ -317,18 +317,19 @@ app.post("/api/change-password",auth,(req,res)=>{
 });
 
 app.get("/api/bootstrap",auth,(req,res)=>{
- const areas=db.prepare("SELECT * FROM areas ORDER BY name").all();
- const apartments=db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id DESC`).all();
- const tenants=db.prepare(`SELECT t.*,a.number apartment,a.area_id FROM tenants t LEFT JOIN apartments a ON a.id=t.apartment_id ORDER BY t.id DESC`).all();
- const payments=db.prepare(`SELECT p.*,t.name tenant FROM payments p LEFT JOIN tenants t ON t.id=p.tenant_id ORDER BY p.payment_date DESC,p.id DESC LIMIT 100`).all();
- const documents=db.prepare("SELECT * FROM documents ORDER BY id DESC LIMIT 100").all();
- const logs=db.prepare("SELECT * FROM logs ORDER BY id DESC LIMIT 150").all();
- const stats=db.prepare(`SELECT COUNT(*) total,
+ const safe=(fn,def)=>{try{return fn()}catch(e){return def}};
+ const areas=safe(()=>db.prepare("SELECT * FROM areas ORDER BY name").all(),[]);
+ const apartments=safe(()=>db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id DESC`).all(),[]);
+ const tenants=safe(()=>db.prepare(`SELECT t.*,a.number apartment,a.area_id FROM tenants t LEFT JOIN apartments a ON a.id=t.apartment_id ORDER BY t.id DESC`).all(),[]);
+ const payments=safe(()=>db.prepare(`SELECT p.*,t.name tenant FROM payments p LEFT JOIN tenants t ON t.id=p.tenant_id ORDER BY p.payment_date DESC,p.id DESC LIMIT 100`).all(),[]);
+ const documents=safe(()=>db.prepare("SELECT * FROM documents ORDER BY id DESC LIMIT 100").all(),[]);
+ const logs=safe(()=>db.prepare("SELECT * FROM logs ORDER BY id DESC LIMIT 150").all(),[]);
+ const stats=safe(()=>db.prepare(`SELECT COUNT(*) total,
  SUM(status='متاحة') available,
  SUM(status IN ('قريبة من التوفر','الحجز ينتهي قريباً')) soon,
  SUM(status='مؤجرة / محجوزة') rented,
- SUM(status='غير متاحة / صيانة') repair FROM apartments`).get();
- const money=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get();
+ SUM(status='غير متاحة / صيانة') repair FROM apartments`).get(),{total:0,available:0,soon:0,rented:0,repair:0});
+ const money=safe(()=>db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get(),{total:0});
  res.json({areas,apartments,tenants,payments,documents,logs,stats,money});
 });
 
