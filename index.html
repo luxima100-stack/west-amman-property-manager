@@ -291,6 +291,40 @@ async function saveT(){try{const enabled=$('renewToggle')?.dataset.enabled!=='0'
   }
 }
 </style>
+
+<style id="v529-typography">
+:root{
+  --v529-text:#111111;
+  --v529-heading:#050505;
+}
+body, body *{
+  color:var(--v529-text);
+}
+body{
+  font-size:18px !important;
+}
+input, select, textarea, button{
+  font-size:18px !important;
+  color:var(--v529-text) !important;
+}
+label, .label, .muted, .notice, .field, .row, .card, .details, .modalbox{
+  font-size:18px !important;
+}
+h1{font-size:28px !important;color:var(--v529-heading)!important;font-weight:800!important;}
+h2{font-size:25px !important;color:var(--v529-heading)!important;font-weight:800!important;}
+h3{font-size:22px !important;color:var(--v529-heading)!important;font-weight:800!important;}
+h4{font-size:20px !important;color:var(--v529-heading)!important;font-weight:800!important;}
+button,.btn{font-weight:700!important;}
+@media (max-width:700px){
+  body{font-size:18px !important;}
+  input,select,textarea,button,.btn{font-size:18px !important;}
+  h1{font-size:28px !important;}
+  h2{font-size:25px !important;}
+  h3{font-size:22px !important;}
+  h4{font-size:20px !important;}
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
