@@ -850,43 +850,63 @@ async function shareApartmentPhotos(id){
   if(!photos.length) return alert('لا توجد صور لهذه الشقة');
   const box=document.createElement('div');box.className='wa-picker';
   box.innerHTML=`<div class="wa-picker-box">
-    <div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v523Close">✕ إغلاق</button></div>
-    <div class="notice">حدد الصور التي تريد إرسالها، ثم اضغط زر WhatsApp.</div>
+    <div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v524Close">✕ إغلاق</button></div>
+    <div class="notice">حدد الصور ثم اضغط إرسال. تم تجهيز الصور مسبقًا حتى لا يمنع الهاتف مشاركة الملفات.</div>
     <div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}" loading="lazy"></label>`).join('')}</div>
-    <div class="wa-range-actions"><button class="btn ghost" id="v523All">تحديد الكل</button><button class="btn ghost" id="v523Clear">إلغاء التحديد</button><button class="btn wa-btn" id="v523Send">🟢 WhatsApp — إرسال الصور</button></div>
+    <div id="v524Status" class="notice">⏳ جاري تجهيز الصور للمشاركة...</div>
+    <div class="wa-range-actions"><button class="btn ghost" id="v524All">تحديد الكل</button><button class="btn ghost" id="v524Clear">إلغاء التحديد</button><button class="btn wa-btn" id="v524Send" disabled>🟢 WhatsApp — إرسال الصور</button></div>
   </div>`;
   document.body.appendChild(box);
   const close=()=>box.remove();
-  box.querySelector('#v523Close').onclick=close;
+  box.querySelector('#v524Close').onclick=close;
   box.onclick=e=>{if(e.target===box)close()};
   box.querySelectorAll('.wa-photo-item').forEach(item=>{
     const cb=item.querySelector('input');
     cb.addEventListener('change',()=>item.classList.toggle('selected',cb.checked));
     item.addEventListener('click',e=>{if(e.target!==cb){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}});
   });
-  box.querySelector('#v523All').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.dispatchEvent(new Event('change'))});
-  box.querySelector('#v523Clear').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.dispatchEvent(new Event('change'))});
-  box.querySelector('#v523Send').onclick=async()=>{
-    const btn=box.querySelector('#v523Send');
-    const chosen=[...box.querySelectorAll('input[type=checkbox]:checked')].map(cb=>photos[Number(cb.dataset.i)]).filter(Boolean);
+  box.querySelector('#v524All').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.dispatchEvent(new Event('change'))});
+  box.querySelector('#v524Clear').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.dispatchEvent(new Event('change'))});
+
+  // Preload all image Files before the user's click. This is important on Android:
+  // awaiting fetch/blob after the click can consume the browser's transient user activation,
+  // causing navigator.share() to fail even though the images were selected correctly.
+  const prepared=[];
+  const status=box.querySelector('#v524Status');
+  try{
+    for(let i=0;i<photos.length;i++){
+      const d=photos[i];
+      const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
+      if(!r.ok) continue;
+      const b=await r.blob();
+      const ext=(d.original_name||d.filename||'jpg').split('.').pop().toLowerCase();
+      const safeExt=['jpg','jpeg','png','webp'].includes(ext)?ext:'jpg';
+      const mime=(b.type&&b.type.startsWith('image/'))?b.type:(safeExt==='png'?'image/png':safeExt==='webp'?'image/webp':'image/jpeg');
+      prepared[i]=new File([b],`شقة-${id}-صورة-${i+1}.${safeExt}`,{type:mime,lastModified:Date.now()});
+    }
+    status.textContent='✅ الصور جاهزة. حدد الصور ثم اضغط إرسال.';
+    box.querySelector('#v524Send').disabled=false;
+  }catch(e){
+    status.textContent='❌ تعذر تجهيز الصور. أعد فتح النافذة وحاول مرة أخرى.';
+    return;
+  }
+
+  box.querySelector('#v524Send').onclick=()=>{
+    const btn=box.querySelector('#v524Send');
+    const chosen=[...box.querySelectorAll('input[type=checkbox]:checked')].map(cb=>prepared[Number(cb.dataset.i)]).filter(Boolean);
     if(!chosen.length) return alert('حدد صورة واحدة على الأقل');
-    try{
-      btn.disabled=true;btn.textContent='⏳ تجهيز الصور...';
-      const files=[];
-      for(let i=0;i<chosen.length;i++){
-        const d=chosen[i];
-        const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
-        if(!r.ok) continue;
-        const b=await r.blob();
-        const ext=(d.original_name||d.filename||'jpg').split('.').pop().toLowerCase();
-        const mime=(b.type&&b.type.startsWith('image/'))?b.type:(ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg');
-        files.push(new File([b],`شقة-${id}-صورة-${i+1}.${ext||'jpg'}`,{type:mime,lastModified:Date.now()}));
-      }
-      if(!files.length) throw new Error('تعذر تجهيز الصور المحددة');
-      btn.textContent='⏳ فتح المشاركة...';
-      await v523ShareImageFiles(files,'صور الشقة');
-      close();
-    }catch(e){if(e?.name!=='AbortError') alert(e?.message||'تعذر إرسال الصور');btn.disabled=false;btn.textContent='🟢 WhatsApp — إرسال الصور'}
+    if(!navigator.share) return alert('المشاركة غير مدعومة. افتح التطبيق في Chrome على الهاتف.');
+    if(navigator.canShare && !navigator.canShare({files:chosen})){
+      return alert('هذا الهاتف لا يسمح بمشاركة عدة صور دفعة واحدة. اختر صورة واحدة ثم أعد المحاولة.');
+    }
+    // IMPORTANT: navigator.share is called directly from the button click,
+    // without fetch/await beforehand, preserving Android's user-activation requirement.
+    btn.disabled=true;btn.textContent='⏳ فتح المشاركة...';
+    const sharePromise=navigator.share({title:'صور الشقة',text:'صور الشقة',files:chosen});
+    sharePromise.then(()=>close()).catch(e=>{
+      if(e?.name!=='AbortError') alert(e?.message||'تعذر فتح مشاركة الصور. اختر WhatsApp من قائمة المشاركة.');
+      btn.disabled=false;btn.textContent='🟢 WhatsApp — إرسال الصور';
+    });
   };
 }
 </script>
