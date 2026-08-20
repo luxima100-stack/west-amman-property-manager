@@ -609,6 +609,53 @@ button[onclick*="deletePhoto"], button[onclick*="deleteDocument"]{
 }
 </style>
 
+
+<style id="v5-46-2-soft-ui">
+/* v5.46.2 — soft, flat buttons and lighter gold theme */
+:root{--g:#bda96f;--g2:#dccb98}
+/* Remove 3D/button press effects */
+.btn,.v55-share-btn,.wa-btn,.renew-toggle,.v513-backup-btn,.v58-share-image,.primary,.dark,.ghost,.danger,.success{
+  transform:none!important;
+  border-radius:10px!important;
+  box-shadow:0 2px 7px rgba(20,16,10,.12)!important;
+  background-image:none!important;
+  transition:box-shadow .15s ease,background-color .15s ease!important;
+}
+.btn:active,.v55-share-btn:active,.wa-btn:active,.renew-toggle:active,.v513-backup-btn:active,.primary:active,.dark:active,.ghost:active,.danger:active,.success:active{
+  transform:none!important;
+  box-shadow:0 1px 4px rgba(20,16,10,.10)!important;
+}
+.primary{background:#c7b47b!important;color:#20180d!important}
+.dark{background:#252033!important;color:#fff!important}
+.ghost{background:#f3efe7!important;color:#302a2a!important}
+.danger{background:#d85a5e!important;color:#fff!important}
+.success{background:#35a978!important;color:#fff!important}
+.wa-btn{background:#35b96b!important;color:#fff!important}
+.v55-share-details{background:#252033!important}
+.v55-share-photos{background:#b9a56b!important}
+.v55-share-video{background:#8b68a1!important}
+.renew-toggle.renew-on{background:#35a978!important}
+.renew-toggle.renew-off{background:#d85a5e!important}
+.v513-backup-btn{background:#30263b!important}
+/* Slightly lighter gold accents */
+.logo,.brand .logo{border-color:#c8b57b!important}
+.hero small,.event:before{color:#d2bf87!important}
+.nav button.active{border-right-color:#c8b57b!important}
+/* Desktop: slightly smaller controls */
+.btn,.v55-share-btn,.wa-btn,.renew-toggle,.v513-backup-btn{font-size:13px!important;padding:8px 12px!important}
+/* Phone: smaller text and buttons */
+@media(max-width:600px){
+  body{font-size:14px!important}
+  .btn,.v55-share-btn,.wa-btn,.renew-toggle,.v513-backup-btn{font-size:12px!important;padding:7px 10px!important;min-height:38px!important}
+  .top h2{font-size:15px!important}
+  .card h4{font-size:17px!important}
+  .meta{font-size:12px!important;line-height:1.75!important}
+  .status-square{font-size:12px!important;padding:5px 9px!important}
+  .toolbar input,.toolbar select{font-size:12px!important;min-height:40px!important}
+  .modalhead .btn{font-size:12px!important;padding:7px 10px!important}
+  .mobile-modal-close{width:38px!important;height:38px!important;font-size:21px!important;box-shadow:0 2px 7px rgba(0,0,0,.16)!important}
+}
+</style>
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
