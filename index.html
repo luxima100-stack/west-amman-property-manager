@@ -274,7 +274,7 @@ const statuses=["متاحة","قريبة من التوفر","الحجز ينته
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 async function api(url,opt={}){opt.headers={...(opt.headers||{}),Authorization:"Bearer "+token};if(opt.body&&!opt.headers["Content-Type"])opt.headers["Content-Type"]="application/json";let r=await fetch(url,opt);let j=await r.json();if(!r.ok)throw Error(j.error||"خطأ");return j}
-function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><div class="password-wrap"><input id="lp" type="password" value="1234" autocomplete="current-password"><button type="button" class="password-toggle" onclick="togglePassword('lp',this)" aria-label="إظهار كلمة المرور">👁️</button></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
+function login(){ $("root").innerHTML=`<div class="login"><div class="loginbox"><div class="logo">⌂</div><h1>إدارة عقارات غرب عمّان</h1><p class="muted" style="text-align:center">النظام النهائي — هاتف وكمبيوتر</p><div class="demo"><b>تجربة:</b><br>owner / 1234 — مالك<br>admin / 1234 — مدير<br>user / 1234 — عرض فقط</div><div class="field"><label>اسم المستخدم</label><input id="lu" value="owner"></div><div class="field"><label>كلمة المرور</label><input id="lp" type="password" value="1234"></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="doLogin()">تسجيل الدخول</button></div></div>`}
 async function doLogin(){try{let j=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:lu.value,password:lp.value})}).then(r=>r.json());if(!j.token)throw Error(j.error);token=j.token;me=j.user;localStorage.setItem("wa_token",token);localStorage.setItem("wa_me",JSON.stringify(me));await load()}catch(e){alert(e.message)}}
 async function load(){if(!token)return login();try{D=await api("/api/bootstrap");render()}catch(e){localStorage.clear();token=null;me=null;login()}}
 function nav(p){page=p;search="";render()}
@@ -295,125 +295,45 @@ function photoHtml(d,i){return `<div class="photo" data-apartment="${d.apartment
 function videoHtml(d){return `<div class="video-wrap v55-video-card" onclick="openMiniVideo(${d.apartment_id})"><div class="v55-video-play-label">▶ تشغيل مصغر</div><video class="v55-video-thumb" muted playsinline preload="metadata" src="/uploads/${encodeURIComponent(d.filename)}"></video><div class="row" onclick="event.stopPropagation()"><span class="muted">${esc(d.original_name)}</span><div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn ghost" onclick="openMiniVideo(${d.apartment_id})">▶ تشغيل</button>${me.role==="owner"?`<button class="v55-share-btn v55-share-video" onclick="shareApartmentVideo(${d.apartment_id})">🎥 مشاركة الفيديو</button>`:""}${me.role!=="user"?`<button class="btn danger" onclick="deleteVideo(${d.id},${d.apartment_id})">حذف</button>`:""}</div></div></div>`}
 
 
-async function shareMediaFiles(id,kind){
+async function shareMediaFiles(id, kind){
   try{
     if(me?.role!=="owner"){alert("المشاركة متاحة للمالك فقط");return;}
     const docs=D.documents.filter(d=>d.apartment_id===id && d.kind===kind);
     if(!docs.length){alert(kind==="صورة شقة"?"لا توجد صور لهذه الشقة":"لا يوجد فيديو لهذه الشقة");return;}
 
-    if(kind!=="صورة شقة"){
-      return shareFilesDirect(docs,kind);
+    const files=[];
+    for(const d of docs){
+      const r=await fetch("/uploads/"+encodeURIComponent(d.filename),{credentials:"same-origin"});
+      if(!r.ok) continue;
+      const blob=await r.blob();
+      let type=blob.type;
+      if(!type){
+        const ext=(d.filename||"").toLowerCase().split(".").pop();
+        type=kind==="صورة شقة" ? (ext==="png"?"image/png":ext==="webp"?"image/webp":"image/jpeg")
+                               : (ext==="webm"?"video/webm":"video/mp4");
+      }
+      files.push(new File([blob],d.original_name||d.filename,{type}));
+    }
+    if(!files.length) throw Error("لم يتم تجهيز الملفات");
+
+    if(navigator.share && navigator.canShare && navigator.canShare({files})){
+      await navigator.share({
+        title: kind==="صورة شقة" ? "صور الشقة" : "فيديو الشقة",
+        files
+      });
+      return;
     }
 
-    // Photo picker: allow up to 30 photos, then share in batches of 10 when the device/WhatsApp limits the batch size.
-    const box=document.createElement('div');
-    box.className='final-alert-modal';
-    box.style.zIndex='2500';
-    box.innerHTML=`<div class="final-alert-panel" style="max-width:760px;width:96vw;max-height:90vh;overflow:auto">
-      <button class="final-alert-close" id="photoPickerClose">✕ إغلاق</button>
-      <h3 style="margin:0 0 10px">🖼️ تحديد صور الشقة</h3>
-      <div class="notice" style="margin-bottom:10px">يمكنك تحديد حتى <b>30 صورة</b>. إذا كان الهاتف لا يسمح بإرسال 30 صورة دفعة واحدة، سيتم تقسيمها تلقائياً إلى مجموعات من 10 صور.</div>
-      <div id="photoCount" class="notice" style="margin-bottom:10px">تم تحديد 0 من ${Math.min(docs.length,30)} صورة</div>
-      <div class="wa-photo-list" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${docs.slice(0,30).map((d,i)=>`<label class="wa-photo-item" style="display:block;position:relative;border:2px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer">
-          <input type="checkbox" data-i="${i}" style="position:absolute;top:7px;right:7px;z-index:2;width:20px;height:20px">
-          <img src="/uploads/${encodeURIComponent(d.filename)}" alt="صورة ${i+1}" style="width:100%;aspect-ratio:1;object-fit:cover;display:block">
-        </label>`).join('')}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        <button class="btn ghost" id="photoSelectAll">تحديد أول 30</button>
-        <button class="btn ghost" id="photoClearAll">إلغاء التحديد</button>
-        <button class="btn wa-btn" id="photoShare">🟢 إرسال الصور المحددة</button>
-      </div>
-      <div id="photoBatch" class="notice" style="margin-top:10px;display:none"></div>
-    </div>`;
-    document.body.appendChild(box);
-
-    const countEl=box.querySelector('#photoCount');
-    const checks=()=>[...box.querySelectorAll('input[type=checkbox]')];
-    const refresh=()=>{
-      const selected=checks().filter(x=>x.checked);
-      countEl.textContent=`تم تحديد ${selected.length} من ${Math.min(docs.length,30)} صورة`;
-      checks().forEach(c=>c.closest('.wa-photo-item').style.borderColor=c.checked?'#b8953f':'transparent');
-    };
-    box.querySelector('#photoPickerClose').onclick=()=>box.remove();
-    box.onclick=e=>{if(e.target===box)box.remove()};
-    box.querySelector('#photoSelectAll').onclick=()=>{checks().forEach(c=>c.checked=true);refresh()};
-    box.querySelector('#photoClearAll').onclick=()=>{checks().forEach(c=>c.checked=false);refresh()};
-    checks().forEach(c=>c.onchange=refresh);
-
-    box.querySelector('#photoShare').onclick=async()=>{
-      const selected=checks().filter(c=>c.checked).map(c=>docs[Number(c.dataset.i)]).slice(0,30);
-      if(!selected.length){alert('حدد صورة واحدة على الأقل');return;}
-      const btn=box.querySelector('#photoShare');
-      btn.disabled=true; btn.textContent='⏳ تجهيز الصور...';
-      try{
-        const files=[];
-        for(const d of selected){
-          const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
-          if(!r.ok) continue;
-          const blob=await r.blob();
-          const ext=(d.filename||'').toLowerCase().split('.').pop();
-          const type=blob.type || (ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg');
-          files.push(new File([blob],d.original_name||d.filename,{type,lastModified:Date.now()}));
-        }
-        if(!files.length)throw Error('تعذر تجهيز الصور للمشاركة');
-
-        // First try all selected photos in one native share action.
-        if(navigator.share && navigator.canShare && navigator.canShare({files})){
-          await navigator.share({title:'صور الشقة',text:`${files.length} صورة للشقة`,files});
-          btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
-          return;
-        }
-
-        // If the device limits the number of shared files, use batches of 10.
-        const batches=[]; for(let i=0;i<files.length;i+=10)batches.push(files.slice(i,i+10));
-        let batchIndex=0;
-        const batchBox=box.querySelector('#photoBatch');
-        const sendBatch=async()=>{
-          const batch=batches[batchIndex];
-          if(!batch)return;
-          if(!navigator.share||!navigator.canShare||!navigator.canShare({files:batch})){
-            throw Error('الهاتف لا يدعم مشاركة هذه المجموعة من الصور عبر المشاركة المباشرة.');
-          }
-          await navigator.share({title:`صور الشقة — المجموعة ${batchIndex+1}`,text:`المجموعة ${batchIndex+1} من ${batches.length}`,files:batch});
-          batchIndex++;
-          if(batchIndex<batches.length){
-            batchBox.style.display='block';
-            batchBox.innerHTML=`تم إرسال المجموعة ${batchIndex} من ${batches.length}. اضغط الزر لإرسال المجموعة التالية (${batches[batchIndex].length} صور). <button class="btn wa-btn" id="nextPhotoBatch" style="margin-top:8px">🟢 إرسال المجموعة التالية</button>`;
-            batchBox.querySelector('#nextPhotoBatch').onclick=sendBatch;
-          }else{
-            batchBox.style.display='block';
-            batchBox.textContent=`✅ تم إرسال جميع الصور المحددة (${files.length} صورة) على ${batches.length} مجموعات.`;
-            btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
-          }
-        };
-        await sendBatch();
-      }catch(e){
-        if(e?.name!=='AbortError') alert(e?.message||'تعذر مشاركة الصور');
-        btn.disabled=false;btn.textContent='🟢 إرسال الصور المحددة';
-      }
-    };
-    refresh();
-  }catch(e){if(e?.name!=='AbortError')alert(e?.message||'تعذر مشاركة الصور');}
-}
-
-async function shareFilesDirect(docs,kind){
-  const files=[];
-  for(const d of docs){
-    const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
-    if(!r.ok)continue;
-    const blob=await r.blob();
-    const ext=(d.filename||'').toLowerCase().split('.').pop();
-    const type=blob.type || (ext==='webm'?'video/webm':'video/mp4');
-    files.push(new File([blob],d.original_name||d.filename,{type}));
+    // Fallback: open the first media so the user can use the device's share menu.
+    const u=URL.createObjectURL(files[0]);
+    const a=document.createElement("a"); a.href=u; a.download=files[0].name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(u),1000);
+    alert("متصفحك لا يدعم مشاركة الوسائط مباشرة. تم تجهيز الملف الأول للمشاركة من الجهاز.");
+  }catch(e){
+    if(e?.name==="AbortError") return;
+    console.error(e);
+    alert("تعذر مشاركة الوسائط. تأكد من السماح للمتصفح بالمشاركة ثم جرّب مرة أخرى.");
   }
-  if(!files.length)throw Error('لم يتم تجهيز الملف');
-  if(navigator.share&&navigator.canShare&&navigator.canShare({files})){
-    await navigator.share({title:kind==='فيديو شقة'?'فيديو الشقة':'الوسائط',files});
-    return;
-  }
-  throw Error('متصفح الهاتف لا يدعم مشاركة الملفات مباشرة');
 }
 async function shareApartmentPhotos(id){return shareMediaFiles(id,"صورة شقة")}
 async function shareApartmentVideo(id){return shareMediaFiles(id,"فيديو شقة")}
@@ -698,16 +618,16 @@ function tenants(){return `<div class="panel"><div class="head"><h3>المستأ
 function addT(){modal(`<div class="modalhead"><h3>إضافة مستأجر وعقد</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="formgrid"><div class="field"><label>الاسم</label><input id="tn"></div><div class="field"><label>الهاتف</label><input id="tp"></div><div class="field"><label>رقم الهوية</label><input id="tid"></div><div class="field"><label>الشقة</label><select id="ta"><option value="">بدون</option>${D.apartments.map(a=>`<option value="${a.id}">${a.number} — ${a.area}</option>`).join("")}</select></div><div class="field"><label>بداية العقد</label><input id="cs" type="date"></div><div class="field"><label>نهاية العقد</label><input id="ce" type="date"></div><div class="field"><label>الإيجار الشهري</label><input id="tr" type="number"></div><div class="field"><label>التأمين</label><input id="dep" type="number"></div><div class="field full"><label>ملاحظات</label><textarea id="tnote"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveT()">حفظ</button>`)}
 async function saveT(){try{await api("/api/tenants",{method:"POST",body:JSON.stringify({name:tn.value,phone:tp.value,national_id:tid.value,apartment_id:ta.value?+ta.value:null,contract_start:cs.value,contract_end:ce.value,monthly_rent:+tr.value,deposit:+dep.value,status:"نشط",notes:tnote.value})});closeM();await load()}catch(e){alert(e.message)}}
 function finance(){return `<div class="panel"><div class="head"><h3>الدفعات والتحصيل</h3>${me.role!=="user"?'<button class="btn primary" onclick="addP()">＋ تسجيل دفعة</button>':""}</div><div class="stats"><div class="stat"><div class="n">${Number(D.money?.total||0).toLocaleString()}</div><div class="l">إجمالي دفعات الشهر د.أ</div></div></div><table><thead><tr><th>التاريخ</th><th>المستأجر</th><th>المبلغ</th><th>الطريقة</th><th>المرجع</th></tr></thead><tbody>${D.payments.map(p=>`<tr><td>${esc(p.payment_date)}</td><td>${esc(p.tenant||"—")}</td><td><b>${Number(p.amount).toLocaleString()} د.أ</b></td><td>${esc(p.method)}</td><td>${esc(p.reference||"—")}</td></tr>`).join("")||'<tr><td colspan="5" class="empty">لا توجد دفعات</td></tr>'}</tbody></table></div>`}
-function addP(){modal(`<div class="modalhead"><h3>تسجيل دفعة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="formgrid"><div class="field"><label>المستأجر</label><select id="pt">${D.tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div><div class="field"><label>المبلغ</label><input id="pa" type="number" step="0.01"></div><div class="field"><label>التاريخ</label><input id="pd" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>طريقة الدفع</label><select id="pm"><option>نقدي</option><option>تحويل بنكي</option><option>إي فواتيركم</option><option>شيك</option></select></div><div class="field"><label>المرجع</label><input id="pr"></div><div class="field full"><label>ملاحظات</label><textarea id="pn"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveP()">حفظ</button>`)}
+function addP(){modal(`<div class="modalhead"><h3>تسجيل دفعة</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="formgrid"><div class="field"><label>المستأجر</label><select id="pt">${D.tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div><div class="field"><label>المبلغ</label><input id="pa" type="number" step="0.01"></div><div class="field"><label>التاريخ</label><input id="pd" type="date" value="${new Date().toISOString().slice(0,30)}"></div><div class="field"><label>طريقة الدفع</label><select id="pm"><option>نقدي</option><option>تحويل بنكي</option><option>إي فواتيركم</option><option>شيك</option></select></div><div class="field"><label>المرجع</label><input id="pr"></div><div class="field full"><label>ملاحظات</label><textarea id="pn"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveP()">حفظ</button>`)}
 async function saveP(){try{await api("/api/payments",{method:"POST",body:JSON.stringify({tenant_id:+pt.value,amount:+pa.value,payment_date:pd.value,method:pm.value,reference:pr.value,notes:pn.value})});closeM();await load()}catch(e){alert(e.message)}}
 function chat(){if(!["owner","admin"].includes(me.role))return '<div class="empty">المحادثة متاحة للمالك وAdmin فقط</div>';return `<div class="panel"><div class="head"><div><h3>💬 محادثة داخلية</h3><span class="muted">محادثة خاصة بين المالك وAdmin</span></div><button class="btn ghost" onclick="loadChat()">↻ تحديث</button></div><div id="chatMessages" class="chat-messages"><div class="empty">جاري تحميل الرسائل...</div></div><div class="chatbox" style="margin-top:12px"><textarea id="chatInput" rows="3" maxlength="2000" placeholder="اكتب رسالتك للمالك أو Admin..."></textarea><button class="btn primary" onclick="sendChat()">إرسال الرسالة</button></div></div>`}
 async function loadChat(){try{let r=await fetch("/api/messages",{headers:{Authorization:"Bearer "+token}});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل تحميل المحادثة");let box=$("chatMessages");if(!box)return;box.innerHTML=j.length?j.map(m=>`<div class="msg ${m.sender_username===me.username?"mine":""}"><div class="meta2">${esc(m.sender_username)} • ${esc(m.created_at)}</div><div>${esc(m.message)}</div></div>`).join(""):'<div class="empty">لا توجد رسائل بعد</div>';box.scrollTop=box.scrollHeight}catch(e){let box=$("chatMessages");if(box)box.innerHTML=`<div class="notice">${esc(e.message)}</div>`}}
 async function sendChat(){let input=$("chatInput");let message=(input?.value||"").trim();if(!message)return;try{await api("/api/messages",{method:"POST",body:JSON.stringify({message})});input.value="";await loadChat()}catch(e){alert(e.message)}}
 function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ مستخدم</button>':""}<button class="btn dark" onclick="changePassword()">🔐 تغيير كلمة المرور</button></div></div><div class="cards"><div class="card"><h4>المالك</h4><div class="meta">إدارة كاملة + حذف + مستخدمين</div></div><div class="card"><h4>Admin</h4><div class="meta">إضافة وتعديل بدون حذف</div></div><div class="card"><h4>User</h4><div class="meta">عرض وبحث فقط</div></div></div><div class="notice" style="margin-top:14px">يمكن لكل مستخدم تغيير كلمة مرور حسابه من هنا. استخدم كلمة مرور قوية ولا تشاركها.</div></div>`}
-function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><div class="password-wrap"><input id="cp" type="password" autocomplete="current-password"><button type="button" class="password-toggle" onclick="togglePassword('cp',this)">👁️</button></div></div><div class="field"><label>كلمة المرور الجديدة</label><div class="password-wrap"><input id="np" type="password" minlength="6" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('np',this)">👁️</button></div></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><div class="password-wrap"><input id="np2" type="password" minlength="6" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('np2',this)">👁️</button></div></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
+function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><input id="cp" type="password" autocomplete="current-password"></div><div class="field"><label>كلمة المرور الجديدة</label><input id="np" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><input id="np2" type="password" minlength="6" autocomplete="new-password"></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
 async function savePassword(){try{if(np.value!==np2.value)throw Error("كلمتا المرور الجديدتان غير متطابقتين");if(np.value.length<6)throw Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف/أرقام على الأقل");await api("/api/change-password",{method:"POST",body:JSON.stringify({currentPassword:cp.value,newPassword:np.value})});closeM();alert("تم تغيير كلمة المرور بنجاح. استخدمها في تسجيل الدخول القادم.")}catch(e){alert(e.message)}}
 
-function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><div class="password-wrap"><input id="up" type="password" autocomplete="new-password"><button type="button" class="password-toggle" onclick="togglePassword('up',this)">👁️</button></div></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
+function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><input id="up" type="password"></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
 async function saveU(){try{await api("/api/users",{method:"POST",body:JSON.stringify({username:un.value,password:up.value,role:ur.value})});closeM();alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3></div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
 function modal(x){
@@ -781,7 +701,7 @@ function tenants(){return `<div class="panel"><div class="head"><h3>المستأ
 function addT(){modal(`<div class="modalhead"><h3>إضافة مستأجر وعقد</h3><button class="btn ghost" onclick="closeM()">✕ إغلاق</button></div><div class="formgrid"><div class="field"><label>الاسم</label><input id="tn"></div><div class="field"><label>الهاتف</label><input id="tp"></div><div class="field"><label>رقم الهوية</label><input id="tid"></div><div class="field"><label>الشقة</label><select id="ta"><option value="">بدون</option>${D.apartments.map(a=>`<option value="${a.id}">${a.number} — ${a.area}</option>`).join('')}</select></div><div class="field"><label>بداية العقد</label><input id="cs" type="date"></div><div class="field"><label>نهاية العقد</label><input id="ce" type="date"></div><div class="field"><label>الإيجار الشهري</label><input id="tr" type="number"></div><div class="field"><label>التأمين</label><input id="dep" type="number"></div><div class="field full"><label>صورة الهوية أو جواز السفر</label><input id="tidfile" type="file" accept="image/jpeg,image/png,image/webp"></div><div class="field full"><label>التجديد</label><button type="button" class="renew-toggle renew-on" id="newRenew" onclick="toggleNewRenewal(this)" data-on="1"><span class="renew-dot"></span><span class="renew-label">قابل للتجديد</span></button></div><div class="field full"><label>ملاحظات</label><textarea id="tnote"></textarea></div></div><button class="btn primary" style="margin-top:14px" onclick="saveT()">حفظ المستأجر</button>`) }
 function toggleNewRenewal(btn){const on=btn.dataset.on!=='1';btn.dataset.on=on?'1':'0';btn.classList.toggle('renew-on',on);btn.classList.toggle('renew-off',!on);btn.innerHTML=`<span class="renew-dot"></span><span class="renew-label">${on?'قابل للتجديد':'غير قابل للتجديد'}</span>`}
 async function toggleRenewal(id,current){try{const t=D.tenants.find(x=>x.id===id);if(!t)return;await api('/api/tenants/'+id,{method:'PUT',body:JSON.stringify({name:t.name,apartment_id:t.apartment_id,phone:t.phone,national_id:t.national_id,status:t.status,contract_start:t.contract_start,contract_end:t.contract_end,monthly_rent:t.monthly_rent,deposit:t.deposit,notes:t.notes,renewal_enabled:!current})});await load();notify(!current?'تم تحويل المستأجر إلى قابل للتجديد':'تم تحويل المستأجر إلى غير قابل للتجديد')}catch(e){alert(e.message)}}
-async function downloadFullBackup(){if(me?.role!=='owner'){alert('حفظ النسخة الكاملة متاح للمالك فقط');return}if(!(await v58Confirm('حفظ نسخة كاملة','سيتم حفظ قاعدة البيانات والصور والمستندات والملفات الموجودة في الموقع في ملف نسخة احتياطية واحد.')))return;try{const r=await fetch('/api/export/full-backup',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('تعذر إنشاء النسخة الاحتياطية');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='west-amman-backup-'+new Date().toISOString().slice(0,10)+'.tar.gz';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);notify('تم حفظ النسخة الاحتياطية كاملة')}catch(e){alert(e.message)}}
+async function downloadFullBackup(){if(me?.role!=='owner'){alert('حفظ النسخة الكاملة متاح للمالك فقط');return}if(!(await v58Confirm('حفظ نسخة كاملة','سيتم حفظ قاعدة البيانات والصور والمستندات والملفات الموجودة في الموقع في ملف نسخة احتياطية واحد.')))return;try{const r=await fetch('/api/export/full-backup',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('تعذر إنشاء النسخة الاحتياطية');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='west-amman-backup-'+new Date().toISOString().slice(0,30)+'.tar.gz';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);notify('تم حفظ النسخة الاحتياطية كاملة')}catch(e){alert(e.message)}}
 /* v5.14 WhatsApp details: direct WhatsApp text, no browser file-share dependency */
 function buildWhatsAppDetails(a){
   const n=v=>String(v??'—');
@@ -891,104 +811,6 @@ users=function(){
 };
 const _v517_render=render;
 render=function(){_v517_render();if(page==='users')loadBackupPanel();};
-
-/* v5.23 FINAL FIXES: WhatsApp image picker + password visibility */
-(function(){
-  const st=document.createElement('style');
-  st.textContent=`
-    .password-wrap{position:relative;display:flex;align-items:center;width:100%}
-    .password-wrap input{width:100%;padding-left:48px!important}
-    .password-toggle{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:38px;height:36px;border:0;border-radius:10px;background:#f1e8d9;color:#251432;font-size:18px;cursor:pointer;z-index:2}
-    .wa-photo-item{cursor:pointer;position:relative;overflow:hidden;border:2px solid transparent!important;border-radius:14px;padding:3px!important}
-    .wa-photo-item.selected{border-color:#b8953f!important;box-shadow:0 0 0 2px rgba(184,149,63,.18)}
-    .wa-photo-item img{display:block;width:100%;height:120px;object-fit:cover;border-radius:10px}
-    .wa-photo-item input{position:absolute;top:8px;right:8px;width:22px;height:22px;z-index:3;accent-color:#b8953f}
-    .wa-photo-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;max-height:52vh;overflow:auto;padding:4px}
-    @media(max-width:600px){.wa-photo-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:48vh}.wa-photo-item img{height:125px}}
-  `;
-  document.head.appendChild(st);
-})();
-function togglePassword(id,btn){const el=document.getElementById(id);if(!el)return;const show=el.type==='password';el.type=show?'text':'password';btn.textContent=show?'🙈':'👁️';btn.setAttribute('aria-label',show?'إخفاء كلمة المرور':'إظهار كلمة المرور');}
-async function v523ShareImageFiles(files,title){
-  if(!files.length) throw new Error('لم يتم تحديد أي صورة');
-  if(!navigator.share) throw new Error('المشاركة غير مدعومة في هذا المتصفح. افتح التطبيق في Chrome على الهاتف.');
-  // Prefer one share action for all selected images.
-  if(navigator.canShare && navigator.canShare({files})){
-    await navigator.share({title:title||'صور الشقة',text:title||'صور الشقة',files});
-    return;
-  }
-  // Fallback for phones/browsers that reject multiple files: share each selected image.
-  for(let i=0;i<files.length;i++){
-    const file=files[i];
-    if(navigator.canShare && !navigator.canShare({files:[file]})) throw new Error('هذا الهاتف لا يدعم مشاركة الصور من المتصفح. افتح التطبيق في Chrome.');
-    await navigator.share({title:`${title||'صور الشقة'} — ${i+1}/${files.length}`,files:[file]});
-  }
-}
-async function shareApartmentPhotos(id){
-  if(me?.role!=='owner') return alert('المشاركة متاحة للمالك فقط');
-  const photos=(D?.documents||[]).filter(d=>d.apartment_id===id&&d.kind==='صورة شقة');
-  if(!photos.length) return alert('لا توجد صور لهذه الشقة');
-  const box=document.createElement('div');box.className='wa-picker';
-  box.innerHTML=`<div class="wa-picker-box">
-    <div class="modalhead"><h3>🟢 WhatsApp — اختر الصور</h3><button class="btn ghost" id="v524Close">✕ إغلاق</button></div>
-    <div class="notice">حدد الصور ثم اضغط إرسال. تم تجهيز الصور مسبقًا حتى لا يمنع الهاتف مشاركة الملفات.</div>
-    <div class="wa-photo-list">${photos.map((p,i)=>`<label class="wa-photo-item"><input type="checkbox" data-i="${i}"><img src="/uploads/${encodeURIComponent(p.filename)}" alt="صورة ${i+1}" loading="lazy"></label>`).join('')}</div>
-    <div id="v524Status" class="notice">⏳ جاري تجهيز الصور للمشاركة...</div>
-    <div class="wa-range-actions"><button class="btn ghost" id="v524All">تحديد الكل</button><button class="btn ghost" id="v524Clear">إلغاء التحديد</button><button class="btn wa-btn" id="v524Send" disabled>🟢 WhatsApp — إرسال الصور</button></div>
-  </div>`;
-  document.body.appendChild(box);
-  const close=()=>box.remove();
-  box.querySelector('#v524Close').onclick=close;
-  box.onclick=e=>{if(e.target===box)close()};
-  box.querySelectorAll('.wa-photo-item').forEach(item=>{
-    const cb=item.querySelector('input');
-    cb.addEventListener('change',()=>item.classList.toggle('selected',cb.checked));
-    item.addEventListener('click',e=>{if(e.target!==cb){cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));}});
-  });
-  box.querySelector('#v524All').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=true;cb.dispatchEvent(new Event('change'))});
-  box.querySelector('#v524Clear').onclick=()=>box.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=false;cb.dispatchEvent(new Event('change'))});
-
-  // Preload all image Files before the user's click. This is important on Android:
-  // awaiting fetch/blob after the click can consume the browser's transient user activation,
-  // causing navigator.share() to fail even though the images were selected correctly.
-  const prepared=[];
-  const status=box.querySelector('#v524Status');
-  try{
-    for(let i=0;i<photos.length;i++){
-      const d=photos[i];
-      const r=await fetch('/uploads/'+encodeURIComponent(d.filename),{credentials:'same-origin',cache:'no-store'});
-      if(!r.ok) continue;
-      const b=await r.blob();
-      const ext=(d.original_name||d.filename||'jpg').split('.').pop().toLowerCase();
-      const safeExt=['jpg','jpeg','png','webp'].includes(ext)?ext:'jpg';
-      const mime=(b.type&&b.type.startsWith('image/'))?b.type:(safeExt==='png'?'image/png':safeExt==='webp'?'image/webp':'image/jpeg');
-      prepared[i]=new File([b],`شقة-${id}-صورة-${i+1}.${safeExt}`,{type:mime,lastModified:Date.now()});
-    }
-    status.textContent='✅ الصور جاهزة. حدد الصور ثم اضغط إرسال.';
-    box.querySelector('#v524Send').disabled=false;
-  }catch(e){
-    status.textContent='❌ تعذر تجهيز الصور. أعد فتح النافذة وحاول مرة أخرى.';
-    return;
-  }
-
-  box.querySelector('#v524Send').onclick=()=>{
-    const btn=box.querySelector('#v524Send');
-    const chosen=[...box.querySelectorAll('input[type=checkbox]:checked')].map(cb=>prepared[Number(cb.dataset.i)]).filter(Boolean);
-    if(!chosen.length) return alert('حدد صورة واحدة على الأقل');
-    if(!navigator.share) return alert('المشاركة غير مدعومة. افتح التطبيق في Chrome على الهاتف.');
-    if(navigator.canShare && !navigator.canShare({files:chosen})){
-      return alert('هذا الهاتف لا يسمح بمشاركة عدة صور دفعة واحدة. اختر صورة واحدة ثم أعد المحاولة.');
-    }
-    // IMPORTANT: navigator.share is called directly from the button click,
-    // without fetch/await beforehand, preserving Android's user-activation requirement.
-    btn.disabled=true;btn.textContent='⏳ فتح المشاركة...';
-    const sharePromise=navigator.share({title:'صور الشقة',text:'صور الشقة',files:chosen});
-    sharePromise.then(()=>close()).catch(e=>{
-      if(e?.name!=='AbortError') alert(e?.message||'تعذر فتح مشاركة الصور. اختر WhatsApp من قائمة المشاركة.');
-      btn.disabled=false;btn.textContent='🟢 WhatsApp — إرسال الصور';
-    });
-  };
-}
 </script>
 <style id="v5-17-backup-css">
 .backup-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
