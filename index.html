@@ -1785,3 +1785,66 @@ body{background:var(--bg)!important;color:var(--t)!important;font-family:Arial,"
 @media(max-width:600px){
  .lux-property b{font-size:15px!important}.lux-property small{font-size:11px!important}.lux-property .lux-prop-meta{font-size:10.5px!important;gap:3px 5px!important}.lux-prop-price{font-size:13px!important}.lux-prop-count{font-size:10px}.lux-prop-status .status-square{font-size:10px!important;padding:4px 5px!important}.lux-prop-actions{gap:4px!important;padding:4px 7px 8px!important}.lux-prop-actions .btn,.lux-prop-actions .v55-share-btn{font-size:9px!important;padding:5px 5px!important;min-height:28px!important}}
 </style>
+
+
+<!-- v5.49.1 FINAL PHOTO + STATUS POLISH -->
+<style id="v5491-final-css">
+/* Brighter-but-controlled apartment statuses */
+.status-square.available{background:#d9f5e8!important;color:#176b4c!important;border-color:#9fd5bb!important}
+.status-square.near{background:#fff0bf!important;color:#7a5b00!important;border-color:#e2c96d!important}
+.status-square.soon{background:#dcecff!important;color:#235f91!important;border-color:#a8c9e8!important}
+.status-square.reserved{background:#ffe0df!important;color:#9a3f45!important;border-color:#e3a4a8!important}
+.status-square.repair{background:#eee4e6!important;color:#7f3f49!important;border-color:#d4b6bb!important}
+/* Photo management */
+.v5491-photo-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.v5491-photo-tools .btn{font-size:11px!important;min-height:32px!important;padding:6px 10px!important}
+.v5491-photo-tools .count{font-size:11px;color:var(--m)}
+.v5491-upload-status{font-size:11px;color:var(--m);margin-top:5px;min-height:18px}
+.v5491-upload-status.ok{color:#176b4c}.v5491-upload-status.err{color:#9a3f45}
+.photo-bulk-check{accent-color:#314754}
+@media(max-width:600px){
+ .v5491-photo-tools{gap:5px}.v5491-photo-tools .btn{font-size:9px!important;min-height:28px!important;padding:5px 7px!important}
+ .v5491-upload-status{font-size:9px}
+}
+</style>
+<script id="v5491-final-js">
+(function(){
+  function getPhotoInput(){return document.getElementById('v548PhotosInput')||document.getElementById('v549PhotosInput')||document.getElementById('apPhotos');}
+  function selectedPhotoChecks(id){return [...document.querySelectorAll('.photo-bulk-check[data-apartment-id="'+id+'"]')];}
+  window.v5491SelectAllPhotos=function(id){selectedPhotoChecks(id).forEach(x=>x.checked=true);finalToast('تم تحديد جميع الصور');};
+  window.v5491ClearPhotoSelection=function(id){selectedPhotoChecks(id).forEach(x=>x.checked=false);finalToast('تم إلغاء تحديد الصور');};
+  window.v5491UpdatePhotoCount=function(id){const n=selectedPhotoChecks(id).filter(x=>x.checked).length;const el=document.getElementById('v5491Selected_'+id);if(el)el.textContent=n+' محددة';};
+  window.uploadApartmentPhotos=async function(id){
+    if(!(me&&['owner','admin'].includes(me.role))) return finalToast('رفع الصور متاح للمالك أو الأدمن فقط');
+    const input=getPhotoInput();
+    if(!input||!input.files||!input.files.length) return finalToast('اختر صورة واحدة على الأقل');
+    const files=[...input.files];
+    const allowed=['image/jpeg','image/png','image/webp'];
+    const bad=files.find(f=>!allowed.includes((f.type||'').toLowerCase()) || !/\.(jpe?g|png|webp)$/i.test(f.name));
+    if(bad) return finalToast('يسمح فقط بصور JPG وPNG وWEBP');
+    const tooBig=files.find(f=>f.size>20*1024*1024);
+    if(tooBig) return finalToast('حجم كل صورة يجب ألا يتجاوز 20 ميجابايت');
+    try{
+      const fd=new FormData(); files.forEach(f=>fd.append('photos',f,f.name));
+      const r=await fetch('/api/apartments/'+id+'/photos',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd,cache:'no-store'});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw Error(j.error||('فشل رفع الصور ('+r.status+')'));
+      input.value=''; await load(); editA(id); finalToast('تم رفع '+files.length+' صورة بنجاح');
+    }catch(e){finalToast(e.message||'تعذر رفع الصور');}
+  };
+  /* Re-open the edit dialog with explicit photo selection controls. */
+  const originalEditA=window.editA;
+  window.editA=function(id){
+    originalEditA(id);
+    setTimeout(()=>{
+      const panel=document.getElementById('photos_'+id); if(!panel)return;
+      const tools=document.createElement('div'); tools.className='v5491-photo-tools';
+      tools.innerHTML='<button type="button" class="btn ghost" id="v5491SelAll_'+id+'">تحديد الكل</button><button type="button" class="btn ghost" id="v5491Clear_'+id+'">إلغاء التحديد</button><span class="count" id="v5491Selected_'+id+'">0 محددة</span>';
+      panel.parentElement.insertBefore(tools,panel);
+      tools.querySelector('#v5491SelAll_'+id).onclick=()=>{v5491SelectAllPhotos(id);v5491UpdatePhotoCount(id)};
+      tools.querySelector('#v5491Clear_'+id).onclick=()=>{v5491ClearPhotoSelection(id);v5491UpdatePhotoCount(id)};
+      selectedPhotoChecks(id).forEach(cb=>cb.addEventListener('change',()=>v5491UpdatePhotoCount(id)));
+    },20);
+  };
+})();
+</script>
