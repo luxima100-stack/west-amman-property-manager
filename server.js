@@ -171,6 +171,21 @@ CREATE TABLE IF NOT EXISTS messages(
  read_at TEXT,
  FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS accounting_entries(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ apartment_id INTEGER,
+ tenant_id INTEGER,
+ type TEXT NOT NULL CHECK(type IN ('income','expense','deposit')),
+ category TEXT NOT NULL DEFAULT 'أخرى',
+ amount REAL NOT NULL DEFAULT 0,
+ entry_date TEXT NOT NULL,
+ description TEXT DEFAULT '',
+ created_by INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY(apartment_id) REFERENCES apartments(id) ON DELETE SET NULL,
+ FOREIGN KEY(tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
+ FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 `);
 
 const AREAS = [
@@ -298,12 +313,19 @@ try { db.prepare(`ALTER TABLE tenants ADD COLUMN renewal_enabled INTEGER NOT NUL
 
 // v5.8: ensure every apartment has a visible internal code.
 db.prepare("UPDATE apartments SET code=number WHERE COALESCE(code,'')='' OR code IS NULL").run();
+// Final finance/location migrations. Safe on old databases.
+for (const [field,type] of [
+  ['latitude','REAL'],['longitude','REAL'],['location_url',"TEXT DEFAULT ''"],['location_label',"TEXT DEFAULT ''"]
+]) { try { db.prepare(`ALTER TABLE apartments ADD COLUMN ${field} ${type}`).run(); } catch {} }
+for (const [field,type] of [
+  ['commission','REAL DEFAULT 0'],['commission_type',"TEXT DEFAULT 'ثابت'"]
+]) { try { db.prepare(`ALTER TABLE tenants ADD COLUMN ${field} ${type}`).run(); } catch {} }
 
 app.use(express.json({limit:"2mb"}));
 app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
 /* Always fetch the current app shell so an old mobile/browser cache cannot
    hide the final UI or an old login script. */
-app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.41.2"}));
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.42.0"}));
 
 app.get("/",(req,res)=>{
   res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -359,7 +381,16 @@ app.get("/api/bootstrap",auth,(req,res)=>{
  SUM(status='مؤجرة / محجوزة') rented,
  SUM(status='غير متاحة / صيانة') repair FROM apartments`).get();
  const money=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments WHERE substr(payment_date,1,7)=strftime('%Y-%m','now')`).get();
- res.json({areas,apartments,tenants,payments,documents,logs,stats,money});
+ const accounting=db.prepare(`SELECT e.*,a.number apartment,t.name tenant,u.username creator FROM accounting_entries e LEFT JOIN apartments a ON a.id=e.apartment_id LEFT JOIN tenants t ON t.id=e.tenant_id LEFT JOIN users u ON u.id=e.created_by ORDER BY e.entry_date DESC,e.id DESC LIMIT 300`).all();
+ const acct=db.prepare(`SELECT
+   COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) income,
+   COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) expenses,
+   COALESCE(SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END),0) deposits
+   FROM accounting_entries`).get();
+ const paidRent=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments`).get().total;
+ const commissionIncome=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM accounting_entries WHERE type='income' AND category='عمولة'`).get().total;
+ const netProfit=Number(paidRent||0)+Number(acct.income||0)-Number(acct.expenses||0);
+ res.json({areas,apartments,tenants,payments,documents,logs,stats,money,accounting,accountingSummary:{income:Number(acct.income||0)+Number(paidRent||0),expenses:Number(acct.expenses||0),deposits:Number(acct.deposits||0),netProfit:Number(netProfit)}});
 });
 
 
@@ -453,9 +484,9 @@ app.post("/api/apartments",auth,(req,res)=>{
   if(!x.number||!x.area_id) return res.status(400).json({error:"رقم الشقة والمنطقة مطلوبان"});
   const code=String(x.code||x.number).trim();
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
-  const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-    x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0);
+  const r=db.prepare(`INSERT INTO apartments(number,code,area_id,status,rent,rooms,baths,kitchen,floor,size_m2,notes,rental_type,daily_rent,monthly_rent,annual_rent,available_date,living_rooms,salons,balconies,availability_alert_days,availability_alert_enabled,latitude,longitude,location_url,location_label)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    x.number,code,x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"");
   log("إضافة شقة",`تمت إضافة الشقة ${x.number}`,req.user.username);res.json({id:r.lastInsertRowid});
 });
 
@@ -463,8 +494,8 @@ app.put("/api/apartments/:id",auth,(req,res)=>{
   if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
   const x=req.body||{};
   const rentalType=["يومي","شهري","سنوي"].includes(x.rental_type)?x.rental_type:"شهري";
-  db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=? WHERE id=?`)
-    .run(x.number,String(x.code||x.number),x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,req.params.id);
+  db.prepare(`UPDATE apartments SET number=?,code=?,area_id=?,status=?,rent=?,rooms=?,baths=?,kitchen=?,floor=?,size_m2=?,notes=?,rental_type=?,daily_rent=?,monthly_rent=?,annual_rent=?,available_date=?,living_rooms=?,salons=?,balconies=?,availability_alert_days=?,availability_alert_enabled=?,latitude=?,longitude=?,location_url=?,location_label=? WHERE id=?`)
+    .run(x.number,String(x.code||x.number),x.area_id,x.status||"متاحة",x.rent||0,x.rooms||1,x.baths||1,x.kitchen||1,x.floor||1,x.size_m2||0,x.notes||"",rentalType,x.daily_rent||0,x.monthly_rent||0,x.annual_rent||0,x.available_date||null,x.living_rooms||0,x.salons||0,x.balconies||0,x.availability_alert_days||0,x.availability_alert_enabled?1:0,x.latitude||null,x.longitude||null,x.location_url||"",x.location_label||"",req.params.id);
   log("تعديل شقة",`تم تعديل الشقة ${x.number}`,req.user.username);res.json({ok:true});
 });
 
@@ -479,15 +510,15 @@ app.delete("/api/apartments/:id",auth,(req,res)=>{
 app.post("/api/tenants",auth,(req,res)=>{
  if(!writeOKFor(req)) return res.status(403).json({error:"صلاحية العرض فقط"});
  const x=req.body||{};
- const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,notes,renewal_enabled)
- VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1);
+ const r=db.prepare(`INSERT INTO tenants(name,apartment_id,phone,national_id,status,contract_start,contract_end,monthly_rent,deposit,commission,commission_type,notes,renewal_enabled)
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.commission||0,x.commission_type||"ثابت",x.notes||"",x.renewal_enabled===false?0:1);
  log("إضافة مستأجر",`تمت إضافة المستأجر ${x.name}`,req.user.username);res.json({ok:true,id:r.lastInsertRowid});
 });
 app.put("/api/tenants/:id",auth,(req,res)=>{
  if(!writeOKFor(req)) return res.status(403).json({error:"لا تملك صلاحية التعديل"});
  const x=req.body||{};
- db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,notes=?,renewal_enabled=? WHERE id=?`)
- .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
+ db.prepare(`UPDATE tenants SET name=?,apartment_id=?,phone=?,national_id=?,status=?,contract_start=?,contract_end=?,monthly_rent=?,deposit=?,commission=?,commission_type=?,notes=?,renewal_enabled=? WHERE id=?`)
+ .run(x.name,x.apartment_id||null,x.phone||"",x.national_id||"",x.status||"نشط",x.contract_start||null,x.contract_end||null,x.monthly_rent||0,x.deposit||0,x.commission||0,x.commission_type||"ثابت",x.notes||"",x.renewal_enabled===false?0:1,req.params.id);
  log("تعديل مستأجر",`تم تعديل المستأجر ${x.name}`,req.user.username);res.json({ok:true});
 });
 
@@ -643,11 +674,40 @@ app.post("/api/backup/restore/:name",auth,async(req,res)=>{
 });
 app.get("/api/export/full-backup",auth,(req,res)=>res.status(410).json({error:"الحفظ اليدوي للنسخة الكاملة غير متاح؛ النسخ الاحتياطي التلقائي يحفظ البيانات والصور كل 24 ساعة ويحتفظ بآخر 10 نسخ"}));
 
+app.get('/api/accounting',auth,(req,res)=>{
+  if(!['owner','admin'].includes(req.user.role)) return res.status(403).json({error:'غير مصرح'});
+  const rows=db.prepare(`SELECT e.*,a.number apartment,t.name tenant FROM accounting_entries e LEFT JOIN apartments a ON a.id=e.apartment_id LEFT JOIN tenants t ON t.id=e.tenant_id ORDER BY e.entry_date DESC,e.id DESC LIMIT 500`).all();
+  const s=db.prepare(`SELECT COALESCE(SUM(CASE WHEN type='income' THEN amount ELSE 0 END),0) income,COALESCE(SUM(CASE WHEN type='expense' THEN amount ELSE 0 END),0) expenses,COALESCE(SUM(CASE WHEN type='deposit' THEN amount ELSE 0 END),0) deposits FROM accounting_entries`).get();
+  const rent=db.prepare(`SELECT COALESCE(SUM(amount),0) total FROM payments`).get().total;
+  res.json({entries:rows,summary:{income:Number(s.income)+Number(rent),rent:Number(rent),expenses:Number(s.expenses),deposits:Number(s.deposits),netProfit:Number(s.income)+Number(rent)-Number(s.expenses)}});
+});
+app.post('/api/accounting',auth,(req,res)=>{
+  if(!['owner','admin'].includes(req.user.role)) return res.status(403).json({error:'غير مصرح'});
+  const x=req.body||{}; const type=['income','expense','deposit'].includes(x.type)?x.type:'income'; const amount=Number(x.amount||0);
+  if(!(amount>0)||!x.entry_date) return res.status(400).json({error:'أدخل المبلغ والتاريخ'});
+  const r=db.prepare(`INSERT INTO accounting_entries(apartment_id,tenant_id,type,category,amount,entry_date,description,created_by) VALUES(?,?,?,?,?,?,?,?)`).run(x.apartment_id||null,x.tenant_id||null,type,String(x.category||'أخرى'),amount,x.entry_date,String(x.description||''),req.user.id);
+  log('إضافة حركة محاسبية',`${type} ${amount} د.أ — ${x.category||'أخرى'}`,req.user.username); res.json({ok:true,id:r.lastInsertRowid});
+});
+app.delete('/api/accounting/:id',auth,(req,res)=>{
+  if(req.user.role!=='owner') return res.status(403).json({error:'المالك فقط'});
+  db.prepare('DELETE FROM accounting_entries WHERE id=?').run(req.params.id); log('حذف حركة محاسبية',`تم حذف الحركة ${req.params.id}`,req.user.username); res.json({ok:true});
+});
+
 app.get("/api/export/apartments.csv",auth,(req,res)=>{
  const rows=db.prepare(`SELECT a.number,ar.name area,a.status,a.rent,a.rooms,a.baths,a.floor,a.size_m2,a.notes FROM apartments a JOIN areas ar ON ar.id=a.area_id ORDER BY a.id`).all();
  const header="number,area,status,rent,rooms,baths,floor,size_m2,notes\n";
  const csv=header+rows.map(r=>[r.number,r.area,r.status,r.rent,r.rooms,r.baths,r.floor,r.size_m2,r.notes].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n");
  res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition","attachment; filename=apartments.csv");res.send("\uFEFF"+csv);
+});
+
+app.get('/property/:id',(req,res)=>{
+  const a=db.prepare(`SELECT a.*,ar.name area FROM apartments a JOIN areas ar ON ar.id=a.area_id WHERE a.id=?`).get(req.params.id);
+  if(!a) return res.status(404).send('<h2 style="font-family:Arial;text-align:center">الشقة غير موجودة</h2>');
+  const photos=db.prepare(`SELECT filename,original_name FROM documents WHERE apartment_id=? AND kind='صورة شقة' ORDER BY id DESC`).all(a.id);
+  const map=a.location_url || (a.latitude&&a.longitude?`https://www.google.com/maps?q=${a.latitude},${a.longitude}`:'');
+  const photo=photos[0]?.filename?`<img src="/uploads/${encodeURIComponent(photos[0].filename)}" style="width:100%;max-height:420px;object-fit:cover;border-radius:18px">`:'';
+  const share= `${req.protocol}://${req.get('host')}/property/${a.id}`;
+  res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><meta name="viewport" content="width=device-width,initial-scale=1"><title>شقة ${String(a.number).replace(/</g,'')}</title><style>body{margin:0;background:#07101a;color:#fff;font-family:Arial,sans-serif}.wrap{max-width:900px;margin:auto;padding:18px}.brand{color:#e5b957;font-size:24px;font-weight:900;margin:10px 0 18px}.card{background:#101b27;border:1px solid #8f6b2a;border-radius:22px;padding:16px;box-shadow:0 12px 40px #0006}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:15px}.item{background:#172433;border-radius:14px;padding:12px}.item b{display:block;color:#f0cc76;margin-bottom:5px}.price{font-size:25px;color:#f0cc76;font-weight:900;margin:18px 0}.btn{display:inline-block;background:#e1b451;color:#111;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:900;margin:5px}.muted{color:#b9c2cc}</style><div class="wrap"><div class="brand">عقارات عمان الغربية<br><small class="muted">WEST AMMAN REAL ESTATE</small></div><div class="card">${photo}<h1>شقة ${String(a.number).replace(/</g,'')}</h1><div class="muted">${String(a.area||'')}</div><div class="grid"><div class="item"><b>الغرف</b>${a.rooms||0}</div><div class="item"><b>الحمامات</b>${a.baths||0}</div><div class="item"><b>المساحة</b>${a.size_m2||0} م²</div><div class="item"><b>الطابق</b>${a.floor||0}</div><div class="item"><b>الحالة</b>${String(a.status||'')}</div></div><div class="price">${Number(a.monthly_rent||a.rent||0).toLocaleString()} د.أ / ${String(a.rental_type||'شهري')}</div>${map?`<a class="btn" href="${map}" target="_blank" rel="noopener">📍 فتح الموقع</a><a class="btn" href="https://wa.me/?text=${encodeURIComponent('موقع شقة '+a.number+' في '+(a.area||'')+'\n'+map)}">🟢 إرسال الموقع واتساب</a>`:''}<a class="btn" href="https://wa.me/?text=${encodeURIComponent('شقة '+a.number+' — '+(a.area||'')+'\n'+share)}">🟢 مشاركة الشقة</a><p class="muted">هذه صفحة عرض عامة ولا تتطلب تسجيل دخول.</p></div></div></html>`);
 });
 
 app.use((req,res,next)=>{
