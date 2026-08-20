@@ -7,6 +7,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFile, execFileSync } from "node:child_process";
+import tar from "tar";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -35,33 +36,40 @@ function pruneBackups(){
 function autoBackup(reason="auto"){
   if(backupRunning) return Promise.resolve({ok:false,skipped:true,reason:"running"});
   backupRunning=true;
-  return new Promise(resolve=>{
-    try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch{}
-    const stamp=new Date().toISOString().replace(/[:.]/g,"-");
-    const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
-    const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
-    const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
-    execFile("tar",["-czf",out,...items],{cwd:__dirname},(err)=>{
-      backupRunning=false;
-      if(err){
-        try{fs.unlinkSync(out);}catch{}
-        writeBackupState({lastError:String(err.message||err),lastAttemptAt:new Date().toISOString()});
-        return resolve({ok:false,error:String(err.message||err)});
-      }
+  return (async()=>{
+    try{
+      try{ db?.pragma("wal_checkpoint(TRUNCATE)"); }catch{}
+      const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+      const safe=String(reason).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(0,30)||"auto";
+      const out=path.join(BACKUP_DIR,`west-amman-${stamp}-${safe}.tar.gz`);
+      const items=["data.db","uploads","index.html","server.js","package.json","render.yaml","manifest.json","sw.js","README_AR.md","hero-realestate.svg"];
+      await tar.c({gzip:true,file:out,cwd:__dirname},items);
       const kept=pruneBackups();
       const now=new Date().toISOString();
       writeBackupState({lastSuccessAt:now,lastSuccessFile:path.basename(out),lastReason:reason,lastError:null,lastAttemptAt:now,keptCount:kept.length});
-      resolve({ok:true,file:path.basename(out),keptCount:kept.length});
-    });
-  });
+      return {ok:true,file:path.basename(out),keptCount:kept.length};
+    }catch(err){
+      const msg=String(err?.message||err);
+      try{
+        const partial=fs.readdirSync(BACKUP_DIR).find(f=>f.endsWith('.tar.gz') && f.includes(String(new Date().getUTCFullYear())));
+        if(partial){ /* keep existing valid backups; do not delete unrelated backups */ }
+      }catch{}
+      writeBackupState({lastError:msg,lastAttemptAt:new Date().toISOString()});
+      return {ok:false,error:msg};
+    }finally{ backupRunning=false; }
+  })();
 }
 
-function requireChildTarList(file){
-  const out=execFileSync("tar",["-tzf",file],{encoding:"utf8"});
-  return out.split(/\r?\n/).map(x=>x.replace(/^\.\//,"")).filter(Boolean);
+async function listBackupArchive(file){
+  const entries=[];
+  await tar.t({file,onentry:e=>entries.push(e.path.replace(/^\.\//,''))});
+  return entries.filter(Boolean);
 }
-function execFileSyncSafeTarExtract(file,dest){
-  execFileSync("tar",["-xzf",file,"-C",dest,"--no-same-owner","--","data.db","uploads"],{stdio:"pipe"});
+async function extractBackupData(file,dest){
+  await tar.x({file,cwd:dest,noMtime:true,filter:p=>{
+    const clean=p.replace(/^\.\//,'');
+    return clean==='data.db' || clean==='uploads' || clean.startsWith('uploads/');
+  }});
 }
 
 const db = new Database(DB_FILE);
