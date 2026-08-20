@@ -1,11 +1,11 @@
 {
-  "name": "إدارة عقارات غرب عمّان",
-  "short_name": "عقارات غرب عمّان",
-  "start_url": "/",
-  "display": "standalone",
-  "dir": "rtl",
-  "lang": "ar",
-  "theme_color": "#080e16",
-  "background_color": "#f5f1e8",
-  "icons": []
+  "name":"إدارة عقارات غرب عمّان",
+  "short_name":"عقارات غرب عمّان",
+  "start_url":"/",
+  "display":"standalone",
+  "dir":"rtl",
+  "lang":"ar",
+  "theme_color":"#20142b",
+  "background_color":"#f5f1e8",
+  "icons":[]
 }
