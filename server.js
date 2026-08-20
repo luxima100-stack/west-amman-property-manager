@@ -186,12 +186,33 @@ for (const a of AREAS) insArea.run(a);
 
 function seedUser(username,password,role){
   if(!db.prepare("SELECT id FROM users WHERE username=?").get(username)){
-    db.prepare("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)").run(username,bcrypt.hashSync(password,12),role);
+    db.prepare("INSERT INTO users(username,password_hash,role,active) VALUES(?,?,?,1)").run(username,bcrypt.hashSync(password,12),role);
   }
 }
 seedUser("owner","1234","owner");
 seedUser("admin","1234","admin");
 seedUser("user","1234","user");
+
+/* v5.41.1 one-time authentication repair.
+   Existing persistent databases from older builds could contain an inactive
+   owner/admin or an old password. Repair the two built-in accounts once,
+   then leave future password changes untouched. */
+const AUTH_REPAIR_MARKER = path.join(DATA_ROOT, ".v5411-auth-repaired");
+if(!fs.existsSync(AUTH_REPAIR_MARKER)){
+  const repair = db.transaction(()=>{
+    for(const [username,role] of [["owner","owner"],["admin","admin"]]){
+      const u=db.prepare("SELECT id FROM users WHERE username=?").get(username);
+      if(u){
+        db.prepare("UPDATE users SET role=?,active=1,password_hash=? WHERE id=?")
+          .run(role,bcrypt.hashSync("1234",12),u.id);
+      }else{
+        db.prepare("INSERT INTO users(username,password_hash,role,active) VALUES(?,?,?,1)")
+          .run(username,bcrypt.hashSync("1234",12),role);
+      }
+    }
+  });
+  try{repair();fs.writeFileSync(AUTH_REPAIR_MARKER,new Date().toISOString());}catch{}
+}
 
 if(db.prepare("SELECT COUNT(*) c FROM apartments").get().c===0){
  const aid=n=>db.prepare("SELECT id FROM areas WHERE name=?").get(n).id;
@@ -279,8 +300,24 @@ try { db.prepare(`ALTER TABLE tenants ADD COLUMN renewal_enabled INTEGER NOT NUL
 db.prepare("UPDATE apartments SET code=number WHERE COALESCE(code,'')='' OR code IS NULL").run();
 
 app.use(express.json({limit:"2mb"}));
-app.use("/uploads",express.static(UPLOAD_DIR));
-app.use(express.static(__dirname));
+app.use("/uploads",express.static(UPLOAD_DIR,{maxAge:"1d"}));
+/* Always fetch the current app shell so an old mobile/browser cache cannot
+   hide the final UI or an old login script. */
+app.get("/health",(req,res)=>res.status(200).json({ok:true,service:"west-amman-property-manager",version:"5.41.2"}));
+
+app.get("/",(req,res)=>{
+  res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma","no-cache");
+  res.set("Expires","0");
+  res.sendFile(path.join(__dirname,"index.html"));
+});
+app.use(express.static(__dirname,{setHeaders:(res,file)=>{
+  if(file.endsWith("index.html")||file.endsWith("sw.js")){
+    res.set("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma","no-cache");
+    res.set("Expires","0");
+  }
+}}));
 
 function auth(req,res,next){
  const h=req.headers.authorization||"";
