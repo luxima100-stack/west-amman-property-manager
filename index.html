@@ -437,6 +437,34 @@ button:disabled, .btn:disabled{
 }
 </style>
 
+
+<style id="v533-users-passwords">
+.v533-pass-toggle{
+ position:absolute!important;left:6px!important;top:50%!important;transform:translateY(-50%)!important;
+ width:42px!important;height:42px!important;padding:0!important;border-radius:10px!important;
+ background:linear-gradient(145deg,#fff0a8,#d9ad3d,#9a6b16)!important;color:#000!important;
+ border:1px solid #8b641c!important;font-size:20px!important;z-index:5!important;
+}
+.v533-user-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px}
+.v533-user-card{border:1px solid #d7bf7a;border-radius:16px;padding:16px;background:linear-gradient(180deg,#fffdf5,#f7edcf);box-shadow:0 5px 14px rgba(70,45,8,.12)}
+.v533-user-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.v533-user-name{font-size:22px!important;font-weight:900!important;color:#000!important}
+.v533-user-role{font-size:17px!important;font-weight:700!important;color:#5c4a25!important;margin-top:4px}
+.v533-perm-summary{font-size:18px!important;margin-top:12px;color:#111!important}
+.v533-perm-form{display:grid;gap:10px;margin:14px 0}
+.v533-perm-row{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid #d7bf7a;border-radius:12px;background:#fffaf0;cursor:pointer}
+.v533-perm-row input{width:24px!important;height:24px!important;accent-color:#b88722}
+.v533-perm-row span{display:flex;flex-direction:column;gap:3px}
+.v533-perm-row b{font-size:19px!important;color:#000!important}
+.v533-perm-row small{font-size:16px!important;color:#333!important}
+@media(max-width:700px){
+ .v533-user-grid{grid-template-columns:1fr}
+ .v533-user-top{align-items:flex-start}
+ .v533-user-name{font-size:21px!important}
+ .v533-perm-row b{font-size:18px!important}
+}
+</style>
+
 </head>
 <body><div id="root"></div><div id="modal" class="modal"><div id="modalbox" class="modalbox"></div></div>
 <script>
@@ -794,12 +822,42 @@ async function saveP(){try{await api("/api/payments",{method:"POST",body:JSON.st
 function chat(){if(!["owner","admin"].includes(me.role))return '<div class="empty">المحادثة متاحة للمالك وAdmin فقط</div>';return `<div class="panel"><div class="head"><div><h3>💬 محادثة داخلية</h3><span class="muted">محادثة خاصة بين المالك وAdmin</span></div><button class="btn ghost" onclick="loadChat()">↻ تحديث</button></div><div id="chatMessages" class="chat-messages"><div class="empty">جاري تحميل الرسائل...</div></div><div class="chatbox" style="margin-top:12px"><textarea id="chatInput" rows="3" maxlength="2000" placeholder="اكتب رسالتك للمالك أو Admin..."></textarea><button class="btn primary" onclick="sendChat()">إرسال الرسالة</button></div></div>`}
 async function loadChat(){try{let r=await fetch("/api/messages",{headers:{Authorization:"Bearer "+token}});let j=await r.json();if(!r.ok)throw Error(j.error||"فشل تحميل المحادثة");let box=$("chatMessages");if(!box)return;box.innerHTML=j.length?j.map(m=>`<div class="msg ${m.sender_username===me.username?"mine":""}"><div class="meta2">${esc(m.sender_username)} • ${esc(m.created_at)}</div><div>${esc(m.message)}</div></div>`).join(""):'<div class="empty">لا توجد رسائل بعد</div>';box.scrollTop=box.scrollHeight}catch(e){let box=$("chatMessages");if(box)box.innerHTML=`<div class="notice">${esc(e.message)}</div>`}}
 async function sendChat(){let input=$("chatInput");let message=(input?.value||"").trim();if(!message)return;try{await api("/api/messages",{method:"POST",body:JSON.stringify({message})});input.value="";await loadChat()}catch(e){alert(e.message)}}
-function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ مستخدم</button>':""}<button class="btn dark" onclick="changePassword()">🔐 تغيير كلمة المرور</button></div></div><div class="cards"><div class="card"><h4>المالك</h4><div class="meta">إدارة كاملة + حذف + مستخدمين</div></div><div class="card"><h4>Admin</h4><div class="meta">إضافة وتعديل بدون حذف</div></div><div class="card"><h4>User</h4><div class="meta">عرض وبحث فقط</div></div></div><div class="notice" style="margin-top:14px">يمكن لكل مستخدم تغيير كلمة مرور حسابه من هنا. استخدم كلمة مرور قوية ولا تشاركها.</div></div>`}
+function users(){return `<div class="panel"><div class="head"><h3>المستخدمون والصلاحيات</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${me.role==="owner"?'<button class="btn primary" onclick="addU()">＋ إضافة مستخدم</button>':""}<button class="btn dark" onclick="changePassword()">🔐 تغيير كلمة المرور</button></div></div><div class="notice">اختر المستخدم لفتح صفحته وتحديد المهام المسموحة له بشكل واضح.</div><div id="usersProfiles" class="v533-user-grid"><div class="empty">جاري تحميل المستخدمين…</div></div></div>`}
+async function loadUsersProfiles(){
+  const box=document.getElementById('usersProfiles'); if(!box)return;
+  try{
+    const j=await api('/api/users');
+    const list=j.users||j||[];
+    box.innerHTML=list.map(u=>`<div class="v533-user-card">
+      <div class="v533-user-top"><div><div class="v533-user-name">👤 ${esc(u.username)}</div><div class="v533-user-role">${u.role==='owner'?'مالك':u.role==='admin'?'Admin':'User'} • ${u.active?'مفعّل':'متوقف'}</div></div>
+      ${me.role==='owner'&&u.role!=='owner'?`<button class="btn primary" onclick="openUserPermissions(${u.id})">⚙️ الصلاحيات</button>`:''}</div>
+      <div class="v533-perm-summary">${u.role==='owner'?'إدارة كاملة':u.role==='admin'?'تحديد مهام Admin من صفحة الصلاحيات':'تحديد أقسام User المسموح له رؤيتها'}</div>
+    </div>`).join('')||'<div class="empty">لا يوجد مستخدمون</div>';
+  }catch(e){box.innerHTML=`<div class="notice">${esc(e.message)}</div>`}
+}
+async function openUserPermissions(id){
+  try{
+    const j=await api('/api/users/'+id+'/permissions');
+    const u=j.user;
+    const isAdmin=u.role==='admin';
+    const items=isAdmin
+      ? [['apartments','الشقق والعقارات','إضافة وتعديل وإدارة الشقق'],['tenants','المستأجرون والحجوزات','إدارة المستأجرين والحجوزات'],['finance','الدفعات والمالية','إدارة الدفعات والبيانات المالية'],['chat','المحادثة','الدخول إلى المحادثة'],['logs','سجل العمليات','عرض سجل العمليات']]
+      : [['view_apartments','عرض الشقق','مشاهدة الشقق والبحث'],['view_tenants','عرض المستأجرين والحجوزات','مشاهدة بيانات المستأجرين والحجوزات'],['view_finance','عرض الدفعات','مشاهدة الدفعات فقط'],['view_chat','عرض المحادثة','الدخول للمحادثة'],['view_logs','عرض السجل','مشاهدة سجل العمليات']];
+    modal(`<div class="modalhead"><h3>صلاحيات ${isAdmin?'Admin':'User'}: ${esc(u.username)}</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div>
+      <div class="notice">حدد المهام التي تريد السماح بها لهذا المستخدم. يمكنك الدخول إلى هذه الصفحة وتعديلها في أي وقت.</div>
+      <div class="v533-perm-form">${items.map(x=>`<label class="v533-perm-row"><input type="checkbox" data-p="${x[0]}" ${u.permissions?.includes(x[0])?'checked':''} onchange="setUserPermission(${u.id},'${x[0]}',this.checked)"><span><b>${x[1]}</b><small>${x[2]}</small></span></label>`).join('')}</div>
+      <button class="btn primary" onclick="closeM()">تم</button>`);
+  }catch(e){alert(e.message)}
+}
+async function setUserPermission(id,permission,enabled){
+  try{await api('/api/users/'+id+'/permissions',{method:'PUT',body:JSON.stringify({permission,enabled})});notify(enabled?'تم تفعيل الصلاحية':'تم إلغاء الصلاحية')}
+  catch(e){alert(e.message)}
+}
 function changePassword(){modal(`<div class="modalhead"><h3>تغيير كلمة المرور</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="notice">الحساب الحالي: <b>${esc(me.username)}</b></div><div class="field"><label>كلمة المرور الحالية</label><input id="cp" type="password" autocomplete="current-password"></div><div class="field"><label>كلمة المرور الجديدة</label><input id="np" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>تأكيد كلمة المرور الجديدة</label><input id="np2" type="password" minlength="6" autocomplete="new-password"></div><button class="btn primary" onclick="savePassword()">حفظ كلمة المرور</button>`)}
 async function savePassword(){try{if(np.value!==np2.value)throw Error("كلمتا المرور الجديدتان غير متطابقتين");if(np.value.length<6)throw Error("كلمة المرور الجديدة يجب أن تكون 6 أحرف/أرقام على الأقل");await api("/api/change-password",{method:"POST",body:JSON.stringify({currentPassword:cp.value,newPassword:np.value})});closeM();alert("تم تغيير كلمة المرور بنجاح. استخدمها في تسجيل الدخول القادم.")}catch(e){alert(e.message)}}
 
 function addU(){modal(`<div class="modalhead"><h3>إضافة مستخدم</h3><button class="btn ghost" onclick="closeM()">إغلاق</button></div><div class="field"><label>اسم المستخدم</label><input id="un"></div><div class="field"><label>كلمة المرور</label><input id="up" type="password"></div><div class="field"><label>الصلاحية</label><select id="ur"><option value="admin">Admin</option><option value="user">User</option><option value="owner">Owner</option></select></div><button class="btn primary" onclick="saveU()">حفظ</button>`)}
-async function saveU(){try{await api("/api/users",{method:"POST",body:JSON.stringify({username:un.value,password:up.value,role:ur.value})});closeM();alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
+async function saveU(){try{let username=un.value.trim(),role=ur.value;if(!username)throw Error("اسم المستخدم مطلوب");let j=await api("/api/users",{method:"POST",body:JSON.stringify({username,password:up.value,role})});closeM();await render();if(role!=="owner"&&j.id)openUserPermissions(j.id);else alert("تم إنشاء المستخدم")}catch(e){alert(e.message)}}
 function logs(){return `<div class="panel"><div class="head"><h3>سجل العمليات</h3></div><div class="timeline">${D.logs.map(l=>`<div class="event"><b>${esc(l.action)}</b> — ${esc(l.detail)}<br><small>${esc(l.created_at)} • ${esc(l.who)}</small></div>`).join("")||'<div class="empty">لا توجد عمليات</div>'}</div></div>`}
 function modal(x){
   const box=$("modalbox");
@@ -814,7 +872,7 @@ function modal(x){
 }
 function closeM(){$("modal").classList.remove("show");document.body.style.overflow=""}
 function logout(){localStorage.clear();token=null;me=null;login()}
-function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat()}
+function render(){shell();if(page==="apartments")drawA();if(page==="chat")loadChat();if(page==="users")setTimeout(loadUsersProfiles,60)}
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 load();
 </script>
@@ -1044,6 +1102,37 @@ async function shareApartmentPhotos(id){
     }catch(e){if(e.name!=='AbortError')alert(e.message)}
   };
 }
+
+/* v5.33 authoritative password visibility */
+(function(){
+  function wirePasswords(){
+    document.querySelectorAll('input[type="password"]:not([data-v533-pass])').forEach(function(inp){
+      inp.setAttribute('data-v533-pass','1');
+      var wrap=inp.parentElement;
+      if(!wrap) return;
+      wrap.style.position='relative';
+      var b=document.createElement('button');
+      b.type='button';
+      b.className='v533-pass-toggle';
+      b.textContent='👁️';
+      b.title='إظهار كلمة المرور';
+      b.setAttribute('aria-label','إظهار كلمة المرور');
+      b.onclick=function(e){
+        e.preventDefault();
+        var show=inp.type==='password';
+        inp.type=show?'text':'password';
+        b.textContent=show?'🙈':'👁️';
+        b.title=show?'إخفاء كلمة المرور':'إظهار كلمة المرور';
+        b.setAttribute('aria-label',b.title);
+      };
+      wrap.appendChild(b);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wirePasswords);
+  else wirePasswords();
+  new MutationObserver(wirePasswords).observe(document.documentElement,{subtree:true,childList:true});
+})();
+
 </script>
 <style id="v5-17-backup-css">
 .backup-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}

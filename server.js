@@ -360,7 +360,7 @@ app.post("/api/users",auth,(req,res)=>{
  if(!username||!password||!["owner","admin","user"].includes(role)) return res.status(400).json({error:"بيانات المستخدم ناقصة"});
  try{
    db.prepare("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)").run(username,bcrypt.hashSync(password,12),role);
-   log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true});
+   const id=db.prepare("SELECT id FROM users WHERE username=?").get(username)?.id; log("إضافة مستخدم",`تمت إضافة ${username}`,req.user.username); res.json({ok:true,id});
  }catch{res.status(409).json({error:"اسم المستخدم موجود مسبقاً"})}
 });
 app.put("/api/users/:id",auth,(req,res)=>{
@@ -371,6 +371,25 @@ app.put("/api/users/:id",auth,(req,res)=>{
  log("تعديل مستخدم",`تم تعديل المستخدم ${req.params.id}`,req.user.username);res.json({ok:true});
 });
 
+app.get("/api/users/:id/permissions",auth,(req,res)=>{
+ if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
+ const id=Number(req.params.id);
+ const user=db.prepare("SELECT id,username,role,active FROM users WHERE id=?").get(id);
+ if(!user) return res.status(404).json({error:"المستخدم غير موجود"});
+ const rows=db.prepare("SELECT permission FROM user_permissions WHERE user_id=? AND enabled=1").all(id);
+ res.json({user:{...user,permissions:rows.map(x=>x.permission)}});
+});
+app.put("/api/users/:id/permissions",auth,(req,res)=>{
+ if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
+ const id=Number(req.params.id), {permission,enabled}=req.body||{};
+ const allowed=["apartments","tenants","finance","chat","logs","view_apartments","view_tenants","view_finance","view_chat","view_logs"];
+ if(!allowed.includes(permission)) return res.status(400).json({error:"صلاحية غير معروفة"});
+ const user=db.prepare("SELECT id,role FROM users WHERE id=?").get(id);
+ if(!user || user.role==="owner") return res.status(404).json({error:"لا يمكن تعديل صلاحيات هذا المستخدم"});
+ db.prepare("INSERT INTO user_permissions(user_id,permission,enabled) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET enabled=excluded.enabled").run(id,permission,enabled?1:0);
+ log("تعديل صلاحيات مستخدم",`تم ${enabled?'تفعيل':'إلغاء'} ${permission} للمستخدم ${id}`,req.user.username);
+ res.json({ok:true});
+});
 app.get("/api/admin-permissions",auth,(req,res)=>{
   if(req.user.role!=="owner") return res.status(403).json({error:"المالك فقط"});
   const users=db.prepare("SELECT id,username,role,active FROM users WHERE role='admin' ORDER BY id").all();
