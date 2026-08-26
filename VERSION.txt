@@ -1,3 +1,3 @@
 West Amman Property Manager
-Release: 18.1.0
-Base: original 18.0.0 design + targeted fixes
+Release: 18.2.0
+Base: original 18.0.0 design + image upload fix + Arabic admin/password management + settings completion

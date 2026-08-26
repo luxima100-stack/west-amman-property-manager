@@ -1,1 +1,1 @@
-{"name":"west-amman-property-manager","version":"18.1.0","private":true,"description":"نظام إدارة عقارات غرب عمان مع Supabase","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"express":"^5.1.0"},"engines":{"node":">=18"}}
+{"name":"west-amman-property-manager","version":"18.2.0","private":true,"description":"نظام إدارة عقارات غرب عمان مع Supabase","main":"server.js","scripts":{"start":"node server.js"},"dependencies":{"express":"^5.1.0"},"engines":{"node":">=18"}}

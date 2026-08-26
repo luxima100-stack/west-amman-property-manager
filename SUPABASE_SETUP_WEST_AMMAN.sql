@@ -22,6 +22,7 @@ create table if not exists public.properties(
   baths integer not null default 0,
   balcony boolean not null default false,
   availability_date date,
+  alert_days integer not null default 7,
   notes text not null default '',
   video_url text not null default '',
   images text[] not null default '{}',
@@ -43,3 +44,6 @@ create policy "public read properties" on public.properties for select using(tru
 
 insert into storage.buckets(id,name,public) values('property-images','property-images',true)
 on conflict(id) do update set public=true;
+
+-- إصلاحات التوافق للنسخ السابقة
+alter table public.properties add column if not exists alert_days integer not null default 7;
