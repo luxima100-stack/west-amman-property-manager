@@ -1,1 +1,3 @@
-17.1.0 — restored full UI + Supabase Auth/DB/Storage
+West Amman Property Manager
+Release: 18.0.0 FINAL
+Root-only ZIP package

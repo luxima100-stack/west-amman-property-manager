@@ -1,11 +1,36 @@
-# عقارات غرب عمان — النسخة الكاملة 17.1
+# عقارات غرب عمان — النسخة النهائية 18.0.0
 
-هذه الحزمة تعيد **واجهة المشروع الكاملة** قبل تعديل تسجيل الدخول، مع ربط تسجيل الدخول والعقارات والمديرين وحفظ حالة التطبيق ورفع الصور بـ Supabase.
+هذه الحزمة مسطحة بدون مجلدات.
 
-### Render Environment Variables
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_BUCKET` = `property-images`
-- `OWNER_EMAIL` = بريد المالك في Supabase (يُستخدم عند إنشاء profile تلقائياً لأول حساب).
+الملفات الأساسية:
+- app.js
+- app.css
+- index.html
+- server.js
+- package.json
+- render.yaml
+- manifest.json
+- sw.js
+- SUPABASE_SETUP_WEST_AMMAN.sql
 
-شغّل `SUPABASE_SETUP_WEST_AMMAN.sql` في Supabase SQL Editor مرة واحدة. ثم ارفع ملفات الحزمة إلى جذر GitHub، وبعدها Manual Deploy في Render.
+قبل التشغيل:
+1. نفّذ ملف SQL في Supabase SQL Editor.
+2. في Render أضف:
+   SUPABASE_URL
+   SUPABASE_SERVICE_ROLE_KEY
+   OWNER_EMAIL
+   SUPABASE_BUCKET=property-images
+3. ارفع محتويات ZIP إلى جذر مستودع GitHub، وليس ملف ZIP نفسه.
+
+تغييرات هذه النسخة:
+- تسجيل دخول للمالك والمدير فقط.
+- حفظ العقارات في Supabase.
+- رفع صور JPG/PNG/WEBP إلى Storage.
+- حذف اسم المستأجر ورقمه والوصف من نافذة إضافة الشقة.
+- شريط التنبيهات أفقي في الصفحة الرئيسية.
+- سجل البحث أفقي.
+- زر × واضح داخل جميع النوافذ المنبثقة.
+- بحث حسب الكود والمنطقة والحالة والغرف والحمامات والبلكونة والسعر.
+- تنبيه الشقق القريبة من التوفر مع الكود والتاريخ.
+- إدارة المديرين وتغيير كلمة المرور من حساب المالك.
+- واتساب ومشاركة حتى 10 صور من الهاتف.
