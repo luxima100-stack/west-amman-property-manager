@@ -1,58 +1,279 @@
-const $=(s,p=document)=>p.querySelector(s),$$=(s,p=document)=>[...p.querySelectorAll(s)];
-let AUTH_TOKEN=localStorage.getItem("wam_auth_token")||"";
-const AREAS=["الكل","عبدون","عبدون الشمالي","عبدون الجنوبي","أم أذينة","أم أذينة الشرقي","أم أذينة الغربي","الرابية","خلدا","دير غبار","دابوق","الصويفية","وادي السير","بيادر وادي السير","أم السماق","أم السماق الشمالي","أم السماق الجنوبي","تلاع العلي","التلاع الشرقي","التلاع الغربي","الشميساني","المدينة الرياضية","ضاحية الرشيد","حي الجامعة","الجبيهة","شفا بدران","صويلح","جبل عمان","العبدلي","مرج الحمام","بدر الجديدة","الجندويل","الديار","الروابي","الجاردنز","شارع مكة","الدوار الأول","الدوار الثاني","الدوار الثالث","الدوار الرابع","الدوار الخامس","الدوار السادس"];
-const seedImages=[
-"https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=82",
-"https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=82",
-"https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1200&q=82"
+const $=(s,p=document)=>p.querySelector(s);
+const $$=(s,p=document)=>[...p.querySelectorAll(s)];
+
+const AREAS=["الكل","عبدون","أم أذينة","الرابية","خلدا","دير غبار","دابوق","الصويفية","وادي السير","بيادر وادي السير","أم السماق","تلاع العلي","الشميساني","جبل عمان","العبدلي","مرج الحمام","شارع مكة","الدوار الأول","الدوار الثاني","الدوار الثالث","الدوار الرابع","الدوار الخامس","الدوار السادس"];
+const PERMISSIONS=[
+  ["dashboard","الرئيسية"],["properties","الشقق"],["tenants","المستأجرين"],
+  ["reports","التقارير"],["settings","الإعدادات"],["messages","المحادثات"]
 ];
-const state={user:null,properties:[],users:[],tenants:[],searchHistory:[],chat:[],design:"design1",settings:{whatsapp:"0790000000",notificationDays:7,heroTitle:"إدارة عقاراتك بسهولة واحترافية",heroSubtitle:"نظام متكامل لإدارة الشقق والمستأجرين في غرب عمان",light:false},page:"dashboard",filter:{q:"",area:"الكل",status:"الكل",rooms:"الكل",baths:"الكل",balcony:"الكل",minPrice:"",maxPrice:"",sort:"newest"}};
+
+const state={
+  user:null,token:"",properties:[],users:[],
+  settings:{design:"blue",whatsapp:"",notificationDays:7,heroTitle:"إدارة عقاراتك بسهولة واحترافية",heroSubtitle:"نظام متكامل لإدارة الشقق في غرب عمان",light:false,soundEnabled:true,areas:[...AREAS.slice(1)]},
+  history:[],
+  page:"dashboard",
+  filter:{q:"",area:"الكل",status:"الكل",rooms:"الكل",baths:"الكل",balcony:"الكل",minPrice:"",maxPrice:"",sort:"newest"}
+};
 
 function esc(v=""){return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-function toast(msg,good=true){const r=$("#toast-root");if(!r){alert(msg);return}const e=document.createElement("div");e.className="toast "+(good?"good":"bad");e.textContent=msg;r.appendChild(e);setTimeout(()=>e.remove(),3200)}
-async function api(url,opt={}){const headers={...(opt.headers||{})};if(AUTH_TOKEN)headers.Authorization=`Bearer ${AUTH_TOKEN}`;const r=await fetch(url,{...opt,headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.message||d.error||"حدث خطأ في الاتصال");return d}
-function norm(p){return {...p,floor:p.floor??"",areaSize:p.area_size??"",availabilityDate:p.availability_date||"",video:p.video_url||"",images:Array.isArray(p.images)?p.images:[]}}
-function loadLocal(){try{state.searchHistory=JSON.parse(localStorage.getItem("wam_search_history")||"[]");state.design=localStorage.getItem("wam_design")||"design1";state.settings={...state.settings,...JSON.parse(localStorage.getItem("wam_settings")||"{}")};state.chat=JSON.parse(localStorage.getItem("wam_chat")||"[]")}catch{}}
-function saveLocal(){localStorage.setItem("wam_search_history",JSON.stringify(state.searchHistory));localStorage.setItem("wam_design",state.design);localStorage.setItem("wam_settings",JSON.stringify(state.settings));localStorage.setItem("wam_chat",JSON.stringify(state.chat))}
-async function sync(){if(!AUTH_TOKEN||!state.user)return;try{const [p,u,s]=await Promise.all([api("/api/properties"),api("/api/users"),api("/api/app-state").catch(()=>({}))]);state.properties=(p||[]).map(norm);state.users=(u||[]).map(x=>({...x,password:""}));if(s&&typeof s==="object"){state.tenants=Array.isArray(s.tenants)?s.tenants:state.tenants;state.searchHistory=Array.isArray(s.searchHistory)?s.searchHistory:state.searchHistory;state.settings={...state.settings,...(s.settings||{})};state.design=s.design||state.design;state.chat=Array.isArray(s.chat)?s.chat:state.chat}saveLocal()}catch(e){console.warn(e)}}
-async function syncState(){if(!AUTH_TOKEN||!state.user)return;try{await api("/api/app-state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({tenants:state.tenants,searchHistory:state.searchHistory,settings:state.settings,design:state.design,chat:state.chat})})}catch(e){console.warn(e)}}
-function persist(){saveLocal();syncState()}
-function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d+"T23:59:59")-Date.now())/86400000)}
-function fmtDate(d){if(!d)return "-";try{return new Intl.DateTimeFormat("ar-JO",{year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(d+"T00:00:00"))}catch{return d}}
+function toast(msg,good=true){
+  const r=$("#toast-root"); if(!r){alert(msg);return}
+  const e=document.createElement("div");e.className="toast "+(good?"good":"bad");e.textContent=msg;r.appendChild(e);setTimeout(()=>e.remove(),3200)
+}
+async function api(url,opt={}){
+  opt.headers={...(opt.headers||{}),...(state.token?{"Authorization":"Bearer "+state.token}:{})};
+  const r=await fetch(url,opt); const x=await r.json().catch(()=>({}));
+  if(!r.ok) throw Error(x.message||x.error||"حدث خطأ");
+  return x;
+}
+function can(p){return state.user?.role==="owner" || state.user?.permissions?.includes(p)}
 function statusClass(s){return s==="متاحة"?"green":s==="مؤجرة"?"blue":s==="محجوزة"?"orange":"red"}
-function soon(){return state.properties.filter(p=>p.status!=="متاحة"&&p.availabilityDate&&daysUntil(p.availabilityDate)>=0&&daysUntil(p.availabilityDate)<=Number(p.alertDays??state.settings.notificationDays??7))}
-function can(p){return state.user?.role==="owner"||state.user?.permissions?.includes(p)}
-function filtered(){let f=state.filter,ps=[...state.properties];const q=f.q.toLowerCase();if(q)ps=ps.filter(p=>`${p.name} ${p.code} ${p.area} ${p.notes||""}`.toLowerCase().includes(q));if(f.area!=="الكل")ps=ps.filter(p=>p.area===f.area);if(f.status!=="الكل")ps=ps.filter(p=>p.status===f.status);if(f.rooms!=="الكل")ps=ps.filter(p=>String(p.rooms)===f.rooms);if(f.baths!=="الكل")ps=ps.filter(p=>String(p.baths)===f.baths);if(f.balcony!=="الكل")ps=ps.filter(p=>String(!!p.balcony)===(f.balcony==="1"));if(f.minPrice!=="")ps=ps.filter(p=>Number(p.price)>=Number(f.minPrice));if(f.maxPrice!=="")ps=ps.filter(p=>Number(p.price)<=Number(f.maxPrice));if(f.sort==="priceAsc")ps.sort((a,b)=>Number(a.price)-Number(b.price));else if(f.sort==="priceDesc")ps.sort((a,b)=>Number(b.price)-Number(a.price));return ps}
-function saveSearch(){const f=state.filter;if(!f.q&&f.area==="الكل"&&f.status==="الكل"&&f.rooms==="الكل"&&f.baths==="الكل"&&f.balcony==="الكل"&&!f.minPrice&&!f.maxPrice)return;const label=[f.q&&`بحث: ${f.q}`,f.area!=="الكل"&&`المنطقة: ${f.area}`,f.status!=="الكل"&&`الحالة: ${f.status}`,f.rooms!=="الكل"&&`غرف: ${f.rooms}`,f.baths!=="الكل"&&`حمامات: ${f.baths}`,f.balcony!=="الكل"&&`بلكونة: ${f.balcony==="1"?"نعم":"لا"}`,f.minPrice&&`من: ${f.minPrice}`,f.maxPrice&&`إلى: ${f.maxPrice}`].filter(Boolean).join(" • ");state.searchHistory=[{...f,label,date:new Date().toLocaleString("ar-JO")},...state.searchHistory.filter(x=>x.label!==label)].slice(0,12);persist()}
-function detailsText(p){return `🏠 عقارات غرب عمان\n🔑 كود الشقة: ${p.code}\n📍 المنطقة: ${p.area}\n🛏️ الغرف: ${p.rooms}\n🛁 الحمامات: ${p.baths}\n🌿 بلكونة: ${p.balcony?"نعم":"لا"}\n🏢 الطابق: ${p.floor||"-"}\n📐 المساحة: ${p.areaSize?p.areaSize+" م²":"-"}\n💰 السعر: ${p.price} دينار شهرياً${p.status!=="متاحة"&&p.availabilityDate?`\n📅 تاريخ التوفر: ${fmtDate(p.availabilityDate)}`:""}`}
-function closeModal(){const r=$("#modal-root");if(r)r.innerHTML=""}
-function modal(html){$("#modal-root").innerHTML=`<div class="modal"><div class="modal-box">${html}</div></div>`;$$(".closeModal").forEach(x=>x.onclick=closeModal)}
-function header(){return `<header class="topbar"><button class="icon-btn" id="menuBtn">☰</button><div class="brand"><div class="brand-mark">⌂</div><div>عقارات غرب عمان<small>إدارة العقارات</small></div></div><div class="top-actions">${soon().length?`<button class="icon-btn pulse" id="alertBtn">🔔 ${soon().length}</button>`:""}<button class="icon-btn" id="themeBtn">◐</button><button class="ghost-btn" id="logoutBtn">خروج</button></div></header>`}
-function sidebar(){const items=[["dashboard","⌂","الرئيسية"],["properties","▦","الشقق"],["tenants","♙","المستأجرين"],["reports","▥","التقارير"],["settings","⚙","الإعدادات"],["admins","♙","إدارة المديرين"],["messages","✉","المحادثات"]];return `<div class="side-title">لوحة التحكم</div>${items.filter(x=>can(x[0])).map(x=>`<button class="nav-item ${state.page===x[0]?"active":""}" data-page="${x[0]}"><span>${x[1]}</span>${x[2]}</button>`).join("")}<div class="side-footer"><b>${esc(state.user?.name||"")}</b><br>${state.user?.role==="owner"?"المالك":"مدير النظام"}</div>`}
-function filters(prefix=""){const f=state.filter,id=x=>prefix+x;const areas=[...new Set(["الكل",...(state.settings.areas||AREAS.slice(1))])];return `<form id="${prefix?"landingSearchForm":"searchForm"}" class="filters ${prefix?"landing-filters":""}"><div class="field search"><label>بحث</label><input id="${id("q")}" value="${esc(f.q)}" placeholder="الكود أو الاسم أو المنطقة"></div><div class="field"><label>المنطقة</label><select id="${id("area")}">${areas.map(x=>`<option ${x===f.area?"selected":""}>${esc(x)}</option>`).join("")}</select></div><div class="field"><label>الحالة</label><select id="${id("status")}">${["الكل","متاحة","مؤجرة","محجوزة","قريبة من الانتهاء"].map(x=>`<option ${x===f.status?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>الغرف</label><select id="${id("rooms")}">${["الكل","1","2","3","4","5","6"].map(x=>`<option ${x===f.rooms?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>الحمامات</label><select id="${id("baths")}">${["الكل","1","2","3","4","5"].map(x=>`<option ${x===f.baths?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>بلكونة</label><select id="${id("balcony")}"><option value="الكل">الكل</option><option value="1" ${f.balcony==="1"?"selected":""}>نعم</option><option value="0" ${f.balcony==="0"?"selected":""}>لا</option></select></div><div class="field"><label>السعر من</label><input id="${id("minPrice")}" type="number" value="${esc(f.minPrice)}"></div><div class="field"><label>السعر إلى</label><input id="${id("maxPrice")}" type="number" value="${esc(f.maxPrice)}"></div><div class="field"><label>الترتيب</label><select id="${id("sort")}"><option value="newest">الأحدث</option><option value="priceAsc">الأقل سعراً</option><option value="priceDesc">الأعلى سعراً</option></select></div><div class="full btn-row"><button class="btn">🔍 بحث</button><button type="button" class="ghost-btn" id="${prefix?"landingReset":"resetFilters"}">↻ مسح</button></div></form>`}
-function cards(ps){if(!ps.length)return `<div class="empty">لا توجد شقق مطابقة.</div>`;return `<div class="cards">${ps.map(p=>`<article class="card"><div class="card-media"><img src="${esc(p.images?.[0]||seedImages[0])}"><span class="badge ${statusClass(p.status)}">${esc(p.status)}</span><span class="photo-count">📷 ${p.images?.length||0}</span></div><div class="card-body"><h3>${esc(p.name)}</h3><div class="muted">#${esc(p.code)} • ${esc(p.area)}</div><div class="card-meta"><span>🛏 ${p.rooms||0}</span><span>🛁 ${p.baths||0}</span><span>📐 ${p.areaSize||"-"} م²</span><span>₪ ${Number(p.price||0).toLocaleString("ar-JO")}</span></div><div class="card-actions"><button class="ghost-btn" data-view="${esc(p.id)}">التفاصيل</button>${state.user&&state.user.role==="owner"?`<button class="btn" data-whatsapp="${esc(p.id)}">واتساب</button>`:""}</div></div></article>`).join("")}</div>`}
-function alertStrip(){const s=soon();return `<div class="landing-alert ${s.length?"has-alert":""}"><div class="landing-alert-icon">${s.length?"🔔":"✓"}</div><div><strong>${s.length?`🔴 ${s.length} ${s.length===1?"شقة ستصبح":"شقق ستصبح"} متاحة قريباً`:"شريط التنبيهات"}</strong><span>${s.length?s.map(p=>`#${esc(p.code)} — ${fmtDate(p.availabilityDate)} — ${Math.max(0,daysUntil(p.availabilityDate))} يوم`).join(" • "):"ستظهر هنا الشقق القريبة من موعد التوفر"}</span></div>${s.length?`<button class="btn danger" id="showSoon">عرض التفاصيل</button>`:""}</div>`}
-function historyHtml(){return state.searchHistory.length?`<div class="history-list">${state.searchHistory.map((h,i)=>`<button class="history-item" data-history="${i}">⌕ <span><b>${esc(h.label)}</b><small>${esc(h.date)}</small></span></button>`).join("")}</div>`:`<div class="empty">لا يوجد سجل بحث بعد.</div>`}
-function dashboard(){const a=state.properties,s=soon();return `<section><div class="hero"><div class="hero-content"><div class="eyebrow">♛ عقارات غرب عمان</div><h1>${esc(state.settings.heroTitle)}</h1><p>${esc(state.settings.heroSubtitle)}</p><div class="btn-row"><button class="btn" data-page="properties">+ إضافة شقة</button><button class="btn dark" data-page="properties">⌕ استعراض العقارات</button></div></div></div>${alertStrip()}<div class="stats"><div class="stat green"><div class="label">متاحة</div><div class="num">${a.filter(x=>x.status==="متاحة").length}</div></div><div class="stat blue"><div class="label">مؤجرة</div><div class="num">${a.filter(x=>x.status==="مؤجرة").length}</div></div><div class="stat orange"><div class="label">محجوزة</div><div class="num">${a.filter(x=>x.status==="محجوزة").length}</div></div><div class="stat red"><div class="label">قريبة من التوفر</div><div class="num">${s.length}</div></div></div><div class="panel landing-search"><div class="panel-title"><h2>🔎 البحث السريع</h2></div>${filters("landing")}<div class="result-line">${filtered().length} نتيجة</div>${cards(filtered().slice(0,8))}</div><div class="panel horizontal-panel"><div class="panel-title"><h2>سجل البحث</h2>${state.searchHistory.length?`<button class="ghost-btn" id="clearHistory">مسح</button>`:""}</div>${historyHtml()}</div></section>`}
-function properties(){return `<section><div class="panel"><div class="panel-title"><div><h2>إدارة الشقق</h2><div class="muted">الإضافة والتعديل والصور محفوظة في Supabase</div></div>${can("properties")?`<button class="btn" id="newProperty">+ إضافة شقة</button>`:""}</div>${filters()}<div class="result-line">${filtered().length} نتيجة</div>${cards(filtered())}</div></section>`}
-function tenants(){return `<section><div class="panel"><div class="panel-title"><h2>المستأجرين</h2><button class="btn" id="newTenant">+ إضافة مستأجر</button></div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>الهاتف</th><th>الشقة</th><th>بداية</th><th>انتهاء</th><th>السعر</th><th>التنبيه</th><th>التجديد</th></tr></thead><tbody>${state.tenants.map(t=>{const p=state.properties.find(x=>String(x.id)===String(t.propertyId));return `<tr><td>${esc(t.name)}</td><td>${esc(t.phone)}</td><td>${p?"#"+esc(p.code):"-"}</td><td>${fmtDate(t.rentStart)}</td><td>${fmtDate(t.contractEnd)}</td><td>${t.price}</td><td>${t.alertDays} يوم</td><td>${t.wantsRenew?"نعم":"لا"}</td></tr>`}).join("")||`<tr><td colspan="8" class="empty">لا توجد بيانات مستأجرين.</td></tr>`}</tbody></table></div></div></section>`}
-function reports(){const a=state.properties,total=a.length,avg=total?Math.round(a.reduce((s,p)=>s+Number(p.price||0),0)/total):0;return `<section><div class="panel"><div class="panel-title"><h2>التقارير والإحصائيات</h2><button class="btn" id="exportData">نسخة احتياطية</button></div><div class="stats"><div class="stat"><div class="label">الإجمالي</div><div class="num">${total}</div></div><div class="stat green"><div class="label">متاحة</div><div class="num">${a.filter(p=>p.status==="متاحة").length}</div></div><div class="stat blue"><div class="label">مؤجرة</div><div class="num">${a.filter(p=>p.status==="مؤجرة").length}</div></div><div class="stat orange"><div class="label">متوسط السعر</div><div class="num">${avg}</div></div></div></div></section>`}
-function settings(){return `<section><div class="panel"><div class="panel-title"><h2>الإعدادات</h2><button class="btn" id="saveSettings">حفظ</button></div><div class="form-grid"><div class="field"><label>رقم واتساب</label><input id="setWhatsapp" value="${esc(state.settings.whatsapp)}"></div><div class="field"><label>أيام التنبيه الافتراضية</label><input id="setDays" type="number" value="${state.settings.notificationDays}"></div><div class="field full"><label>عنوان الصفحة الرئيسية</label><input id="setTitle" value="${esc(state.settings.heroTitle)}"></div><div class="field full"><label>الوصف الرئيسي</label><textarea id="setSubtitle">${esc(state.settings.heroSubtitle)}</textarea></div><div class="field"><label>المظهر</label><select id="setTheme"><option value="dark" ${!state.settings.light?"selected":""}>داكن فاخر</option><option value="light" ${state.settings.light?"selected":""}>أبيض راقٍ</option></select></div></div><h3>التصاميم</h3><div class="design-grid">${["design1","design2","design3","design4"].map((d,i)=>`<button class="design-option ${state.design===d?"active":""}" data-design="${d}"><div class="design-preview d${i+1}"></div><b>${["الفخم الداكن","التركواز الفاخر","الأبيض والذهبي الراقي","الأزرق الراقي"][i]}</b></button>`).join("")}</div></div></section>`}
-function admins(){return `<section><div class="panel"><div class="panel-title"><h2>إدارة المديرين والصلاحيات</h2>${state.user.role==="owner"?`<button class="btn" id="newAdmin">+ إضافة مدير</button>`:""}</div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th><th></th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role==="owner"?"المالك":"مدير"}</td><td>${(u.permissions||[]).join("، ")}</td><td>${state.user.role==="owner"?`<button class="ghost-btn" data-edit-user="${esc(u.id)}">تعديل</button>`:""}</td></tr>`).join("")}</tbody></table></div></div></section>`}
-function messages(){return `<section><div class="panel"><div class="panel-title"><h2>المحادثات</h2></div><div class="chat-box">${state.chat.map(m=>`<div class="chat-msg ${m.user===state.user.id?"mine":""}"><b>${esc(m.name)}</b><div>${esc(m.text)}</div><small>${esc(m.date)}</small></div>`).join("")||`<div class="empty">لا توجد رسائل.</div>`}</div><form id="chatForm" class="chat-form"><input id="chatText" required placeholder="اكتب رسالتك..."><button class="btn">إرسال</button></form></div></section>`}
-function shell(){document.body.className=state.design+(state.settings.light?" light":"");return `${header()}<div class="layout"><aside class="sidebar" id="sidebar">${sidebar()}</aside><main class="content">${state.page==="dashboard"?dashboard():state.page==="properties"?properties():state.page==="tenants"?tenants():state.page==="reports"?reports():state.page==="settings"?settings():state.page==="admins"?admins():messages()}</main></div><div id="modal-root"></div>`}
-function login(){return `<div class="login"><div class="login-box"><div class="brand"><div class="brand-mark">⌂</div><div>عقارات غرب عمان<small>WEST AMMAN PROPERTY MANAGER</small></div></div><h1>تسجيل الدخول</h1><p class="login-note">الدخول متاح للمالك والمدير فقط</p><form id="loginForm" class="login-form"><div class="field"><label>البريد الإلكتروني</label><input id="loginEmail" type="email" required></div><div class="field"><label>كلمة المرور</label><input id="loginPassword" type="password" required></div><button class="btn">دخول إلى النظام</button></form></div></div>`}
-function propertyModal(p=null){let imgs=[...(p?.images||[])];modal(`<div class="modal-head"><h2>${p?"تعديل الشقة":"إضافة شقة"}</h2><button class="icon-btn closeModal">✕</button></div><form id="propertyForm" class="form-grid"><div class="field"><label>كود الشقة</label><input id="pCode" required value="${esc(p?.code||"")}"></div><div class="field"><label>اسم الشقة</label><input id="pName" required value="${esc(p?.name||"")}"></div><div class="field"><label>المنطقة</label><select id="pArea">${(state.settings.areas||AREAS.slice(1)).map(a=>`<option ${a===p?.area?"selected":""}>${esc(a)}</option>`).join("")}</select></div><div class="field"><label>الحالة</label><select id="pStatus">${["متاحة","مؤجرة","محجوزة","قريبة من الانتهاء"].map(x=>`<option ${x===(p?.status||"متاحة")?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>الغرف</label><input id="pRooms" type="number" min="0" value="${p?.rooms||0}"></div><div class="field"><label>الحمامات</label><input id="pBaths" type="number" min="0" value="${p?.baths||0}"></div><div class="field"><label>بلكونة</label><select id="pBalcony"><option value="1" ${p?.balcony?"selected":""}>نعم</option><option value="0" ${!p?.balcony?"selected":""}>لا</option></select></div><div class="field"><label>الطابق</label><input id="pFloor" type="number" value="${esc(p?.floor??"")}"></div><div class="field"><label>المساحة م²</label><input id="pAreaSize" type="number" value="${esc(p?.areaSize??"")}"></div><div class="field"><label>السعر الشهري</label><input id="pPrice" type="number" value="${p?.price||""}"></div><div class="field"><label>تاريخ التوفر</label><input id="pAvail" type="date" value="${esc(p?.availabilityDate||"")}"></div><div class="field"><label>التنبيه قبل التوفر (أيام)</label><input id="pAlert" type="number" min="0" value="${p?.alertDays??state.settings.notificationDays}"></div><div class="field full"><label>فيديو الشقة (رابط اختياري)</label><input id="pVideo" value="${esc(p?.video||"")}" placeholder="https://..."></div><div class="field full"><label>الصور JPG / PNG / WEBP — حتى 10 صور</label><input id="pImages" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="photos" id="pPreview">${imgs.map((x,i)=>`<div class="photo"><img src="${esc(x)}"><button type="button" data-remove-img="${i}">✕</button></div>`).join("")}</div></div><div class="full btn-row"><button class="btn">${p?"حفظ التعديل":"حفظ الشقة"}</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);
-const preview=()=>{$("#pPreview").innerHTML=imgs.map((x,i)=>`<div class="photo"><img src="${esc(x)}"><button type="button" data-remove-img="${i}">✕</button></div>`).join("");$$("[data-remove-img]").forEach(b=>b.onclick=()=>{imgs.splice(Number(b.dataset.removeImg),1);preview()})};preview();
-$("#pImages").onchange=async e=>{for(const f of [...e.target.files]){if(imgs.length>=10)break;imgs.push(await fileToData(f))}e.target.value="";preview()};
-$("#propertyForm").onsubmit=async e=>{e.preventDefault();try{let uploaded=imgs.filter(x=>!x.startsWith("data:"));const files=[...$("#pImages").files];if(files.length){const fd=new FormData();files.slice(0,10-uploaded.length).forEach(f=>fd.append("images",f));const r=await fetch("/api/upload",{method:"POST",headers:AUTH_TOKEN?{Authorization:`Bearer ${AUTH_TOKEN}`}:{},body:fd});const d=await r.json();if(!r.ok)throw Error(d.error||"فشل رفع الصور");uploaded=[...uploaded,...(d.urls||[])]}const body={code:$("#pCode").value.trim(),name:$("#pName").value.trim(),area:$("#pArea").value,status:$("#pStatus").value,rooms:Number($("#pRooms").value||0),baths:Number($("#pBaths").value||0),balcony:Number($("#pBalcony").value||0),floor:$("#pFloor").value,areaSize:$("#pAreaSize").value,price:Number($("#pPrice").value||0),availabilityDate:$("#pAvail").value,alertDays:Number($("#pAlert").value||state.settings.notificationDays),video:$("#pVideo").value.trim(),notes:"",images:uploaded.slice(0,10)};const saved=await api(p?`/api/properties/${encodeURIComponent(p.id)}`:"/api/properties",{method:p?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(p)state.properties=state.properties.map(x=>String(x.id)===String(p.id)?norm(saved):x);else state.properties=[norm(saved),...state.properties];closeModal();render();toast("تم حفظ الشقة والصور")}catch(e){toast(e.message,false)}}}
-function fileToData(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
-function details(p){modal(`<div class="modal-head"><h2>${esc(p.name)}</h2><button class="icon-btn closeModal">✕</button></div><div class="muted">#${esc(p.code)} • ${esc(p.area)}</div><div class="details-gallery">${(p.images||[]).map(x=>`<img src="${esc(x)}">`).join("")}</div>${p.video?`<video controls class="video-el" src="${esc(p.video)}"></video>`:""}<div class="detail-grid"><div><b>الكود</b><span>${esc(p.code)}</span></div><div><b>المنطقة</b><span>${esc(p.area)}</span></div><div><b>الغرف</b><span>${p.rooms}</span></div><div><b>الحمامات</b><span>${p.baths}</span></div><div><b>البلكونة</b><span>${p.balcony?"نعم":"لا"}</span></div><div><b>الطابق</b><span>${p.floor||"-"}</span></div><div><b>المساحة</b><span>${p.areaSize?p.areaSize+" م²":"-"}</span></div><div><b>السعر</b><span>${p.price} دينار</span></div><div><b>الحالة</b><span class="badge ${statusClass(p.status)} static">${esc(p.status)}</span></div></div><div class="copy-box"><label>التفاصيل الكاملة</label><textarea id="copyText" rows="8">${esc(detailsText(p))}</textarea></div><div class="btn-row"><button class="btn" id="waBtn">واتساب + الصور</button>${can("properties")?`<button class="ghost-btn" id="editBtn">تعديل</button>`:""}</div></div>`);$("#waBtn").onclick=()=>share(p);$("#editBtn")?.addEventListener("click",()=>{closeModal();propertyModal(p)})}
-function share(p){const text=detailsText(p);modal(`<div class="modal-head"><h2>مشاركة الشقة</h2><button class="icon-btn closeModal">✕</button></div><div class="share-summary"><b>#${esc(p.code)} — ${esc(p.name)}</b><p>${esc(p.area)}</p></div><div class="share-images">${(p.images||[]).slice(0,10).map((x,i)=>`<label class="share-image selected"><input type="checkbox" checked data-share="${i}"><img src="${esc(x)}"><span>${i+1}</span></label>`).join("")}</div><textarea id="shareText" rows="8">${esc(text)}</textarea><div class="btn-row"><button class="btn" id="sendWA">📲 تجهيز واتساب</button><button class="ghost-btn" id="copyWA">نسخ</button></div>`,true);$("#copyWA").onclick=()=>navigator.clipboard?.writeText($("#shareText").value).then(()=>toast("تم النسخ"));$("#sendWA").onclick=async()=>{const ids=$$("[data-share]:checked").map(x=>Number(x.dataset.share)).slice(0,10);const urls=ids.map(i=>p.images?.[i]).filter(Boolean);try{if(navigator.share){const files=[];for(let i=0;i<urls.length;i++){const b=await fetch(urls[i]).then(r=>r.blob());files.push(new File([b],`شقة-${p.code}-${i+1}.jpg`,{type:b.type||"image/jpeg"}))}const data={title:`شقة ${p.code}`,text};if(files.length&&navigator.canShare?.({files}))data.files=files;await navigator.share(data)}else window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank");closeModal()}catch(e){if(e.name!=="AbortError")window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank")}}}
-function soonModal(){modal(`<div class="modal-head"><h2>🔔 الشقق القريبة من التوفر</h2><button class="icon-btn closeModal">✕</button></div>${soon().map(p=>`<div class="soon-card"><img src="${esc(p.images?.[0]||seedImages[0])}"><div><b>#${esc(p.code)} — ${esc(p.name)}</b><div>${esc(p.area)}</div><div class="danger-text">التوفر: ${fmtDate(p.availabilityDate)} — بعد ${Math.max(0,daysUntil(p.availabilityDate))} يوم</div></div></div>`).join("")||`<div class="empty">لا توجد تنبيهات.</div>`}`)}
-function tenantModal(t=null){modal(`<div class="modal-head"><h2>${t?"تعديل مستأجر":"إضافة مستأجر"}</h2><button class="icon-btn closeModal">✕</button></div><form id="tenantForm" class="form-grid"><div class="field"><label>الاسم</label><input id="tName" required value="${esc(t?.name||"")}"></div><div class="field"><label>الهاتف</label><input id="tPhone" value="${esc(t?.phone||"")}"></div><div class="field full"><label>الشقة</label><select id="tProperty"><option value="">بدون ربط</option>${state.properties.map(p=>`<option value="${esc(p.id)}" ${String(t?.propertyId)===String(p.id)?"selected":""}>#${esc(p.code)} — ${esc(p.name)}</option>`).join("")}</select></div><div class="field"><label>بداية الإيجار</label><input id="tStart" type="date" required value="${esc(t?.rentStart||"")}"></div><div class="field"><label>انتهاء العقد</label><input id="tEnd" type="date" required value="${esc(t?.contractEnd||"")}"></div><div class="field"><label>السعر</label><input id="tPrice" type="number" value="${t?.price||""}"></div><div class="field"><label>التنبيه قبل التوفر بأيام</label><input id="tAlert" type="number" value="${t?.alertDays??state.settings.notificationDays}"></div><div class="field"><label>التجديد</label><select id="tRenew"><option value="1" ${t?.wantsRenew!==false?"selected":""}>نعم</option><option value="0" ${t?.wantsRenew===false?"selected":""}>لا</option></select></div><div class="full btn-row"><button class="btn">حفظ</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);$("#tenantForm").onsubmit=e=>{e.preventDefault();const o={id:t?.id||Date.now().toString(),name:$("#tName").value.trim(),phone:$("#tPhone").value.trim(),propertyId:$("#tProperty").value,rentStart:$("#tStart").value,contractEnd:$("#tEnd").value,price:Number($("#tPrice").value||0),alertDays:Number($("#tAlert").value||state.settings.notificationDays),wantsRenew:$("#tRenew").value==="1"};state.tenants=t?state.tenants.map(x=>x.id===t.id?o:x):[...state.tenants,o];if(o.propertyId)state.properties=state.properties.map(p=>String(p.id)===String(o.propertyId)?{...p,availabilityDate:o.contractEnd,alertDays:o.alertDays,tenant:o.name,phone:o.phone,status:p.status==="متاحة"?"مؤجرة":p.status}:p);persist();closeModal();render();toast("تم حفظ بيانات المستأجر")}}
-function userModal(u=null){if(state.user.role!=="owner")return toast("هذه الصلاحية للمالك فقط",false);modal(`<div class="modal-head"><h2>${u?"تعديل المستخدم":"إضافة مدير"}</h2><button class="icon-btn closeModal">✕</button></div><form id="userForm" class="form-grid"><div class="field"><label>الاسم</label><input id="uName" required value="${esc(u?.name||"")}"></div><div class="field"><label>البريد</label><input id="uEmail" type="email" required value="${esc(u?.email||"")}"></div><div class="field"><label>كلمة المرور</label><input id="uPassword" type="password" placeholder="${u?"اتركها فارغة دون تغيير":"6 أحرف على الأقل"}" ${u?"":"required"}></div><div class="field full"><label>الصلاحيات</label><div class="permissions">${["dashboard","properties","tenants","reports","settings","messages"].map(x=>`<label class="check"><input type="checkbox" value="${x}" ${u?.permissions?.includes(x)?"checked":""}>${x}</label>`).join("")}</div></div><div class="full btn-row"><button class="btn">حفظ</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);$("#userForm").onsubmit=async e=>{e.preventDefault();try{const permissions=$$("#userForm input[type=checkbox]:checked").map(x=>x.value);const body={name:$("#uName").value.trim(),email:$("#uEmail").value.trim(),password:$("#uPassword").value,permissions};const saved=u?await api(`/api/users/${encodeURIComponent(u.id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}):await api("/api/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,role:"admin"})});if(u)state.users=state.users.map(x=>x.id===u.id?{...x,...saved,password:""}:x);else state.users.push({...saved,password:""});closeModal();render();toast("تم حفظ المستخدم")}catch(e){toast(e.message,false)}}}
-function exportData(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify({properties:state.properties,users:state.users,tenants:state.tenants,searchHistory:state.searchHistory,settings:state.settings,design:state.design,chat:state.chat},null,2)],{type:"application/json"}));a.download="west-amman-backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function bind(){ $("#loginForm")?.addEventListener("submit",async e=>{e.preventDefault();try{const d=await api("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("#loginEmail").value.trim(),password:$("#loginPassword").value})});AUTH_TOKEN=d.token;localStorage.setItem("wam_auth_token",AUTH_TOKEN);localStorage.setItem("wam_auth_user",JSON.stringify(d.user));state.user=d.user;state.page="dashboard";await sync();render()}catch(e){toast(e.message,false)}});$("#menuBtn")?.addEventListener("click",()=>$("#sidebar")?.classList.toggle("open"));$("#logoutBtn")?.addEventListener("click",()=>{AUTH_TOKEN="";state.user=null;localStorage.removeItem("wam_auth_token");localStorage.removeItem("wam_auth_user");render()});$("#themeBtn")?.addEventListener("click",()=>{state.settings.light=!state.settings.light;persist();render()});$("#alertBtn")?.addEventListener("click",soonModal);$("#showSoon")?.addEventListener("click",soonModal);$$("[data-page]").forEach(b=>b.onclick=()=>{state.page=b.dataset.page;$("#sidebar")?.classList.remove("open");render()});$("#newProperty")?.addEventListener("click",()=>propertyModal());$("#newTenant")?.addEventListener("click",()=>tenantModal());$("#newAdmin")?.addEventListener("click",()=>userModal());$("#exportData")?.addEventListener("click",exportData);$("#clearHistory")?.addEventListener("click",()=>{state.searchHistory=[];persist();render()});$$("[data-view]").forEach(b=>b.onclick=()=>details(state.properties.find(p=>String(p.id)===String(b.dataset.view))));$$("[data-whatsapp]").forEach(b=>b.onclick=()=>share(state.properties.find(p=>String(p.id)===String(b.dataset.whatsapp))));$$("[data-history]").forEach(b=>b.onclick=()=>{const h=state.searchHistory[Number(b.dataset.history)];if(h){state.filter={...state.filter,...h};state.page="properties";render()}});$$("[data-edit-user]").forEach(b=>b.onclick=()=>userModal(state.users.find(u=>String(u.id)===String(b.dataset.editUser))));const form=$("#searchForm");if(form)form.onsubmit=e=>{e.preventDefault();["q","area","status","rooms","baths","balcony","minPrice","maxPrice","sort"].forEach(id=>state.filter[id]=$("#"+id).value);saveSearch();render()};$("#resetFilters")?.addEventListener("click",()=>{state.filter={q:"",area:"الكل",status:"الكل",rooms:"الكل",baths:"الكل",balcony:"الكل",minPrice:"",maxPrice:"",sort:"newest"};render()});const lf=$("#landingSearchForm");if(lf)lf.onsubmit=e=>{e.preventDefault();state.filter={q:$("#landingq").value.trim(),area:$("#landingarea").value,status:$("#landingstatus").value,rooms:$("#landingrooms").value,baths:$("#landingbaths").value,balcony:$("#landingbalcony").value,minPrice:$("#landingminPrice").value,maxPrice:$("#landingmaxPrice").value,sort:$("#landingsort").value};saveSearch();render()};$("#landingReset")?.addEventListener("click",()=>{state.filter={q:"",area:"الكل",status:"الكل",rooms:"الكل",baths:"الكل",balcony:"الكل",minPrice:"",maxPrice:"",sort:"newest"};render()});$("#saveSettings")?.addEventListener("click",()=>{state.settings.whatsapp=$("#setWhatsapp").value.trim();state.settings.notificationDays=Number($("#setDays").value||7);state.settings.heroTitle=$("#setTitle").value.trim();state.settings.heroSubtitle=$("#setSubtitle").value.trim();state.settings.light=$("#setTheme").value==="light";persist();render();toast("تم حفظ الإعدادات")});$$("[data-design]").forEach(b=>b.onclick=()=>{state.design=b.dataset.design;persist();render()});$("#chatForm")?.addEventListener("submit",e=>{e.preventDefault();const t=$("#chatText").value.trim();if(!t)return;state.chat.push({user:state.user.id,name:state.user.name,text:t,date:new Date().toLocaleString("ar-JO")});persist();render()})}
-function render(){$("#app").innerHTML=state.user?shell():login();bind()}
-async function boot(){loadLocal();try{const u=JSON.parse(localStorage.getItem("wam_auth_user")||"null");if(AUTH_TOKEN&&u){state.user=u;await sync();render();return}const p=await api("/api/public/properties");if(Array.isArray(p))state.properties=p.map(norm)}catch{}render()}boot();
+function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d+"T23:59:59")-Date.now())/86400000)}
+function formatDate(d){if(!d)return "-";try{return new Intl.DateTimeFormat("ar-JO",{year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(d+"T00:00:00"))}catch{return d}}
+
+async function loadState(){
+  try{
+    const x=await api("/api/app-state");
+    state.settings={...state.settings,...(x.settings||{})};
+    state.history=Array.isArray(x.search_history)?x.search_history:[];
+    state.settings.areas=[...new Set([...(state.settings.areas||[]),...AREAS.slice(1)])];
+  }catch{}
+}
+async function loadPublic(){try{state.properties=await api("/api/public/properties")}catch{state.properties=[]}render()}
+async function loadAdmin(){state.properties=await api("/api/properties");await loadState();render()}
+async function persistState(){
+  try{await api("/api/app-state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({settings:state.settings,search_history:state.history})})}
+  catch(e){toast(e.message,false)}
+}
+function saveHistory(){
+  const f=state.filter;
+  if(!f.q&&f.area==="الكل"&&f.status==="الكل"&&f.rooms==="الكل"&&f.baths==="الكل"&&f.balcony==="الكل"&&f.minPrice===""&&f.maxPrice==="") return;
+  const label=[f.q&&`بحث: ${f.q}`,f.area!=="الكل"&&`المنطقة: ${f.area}`,f.status!=="الكل"&&`الحالة: ${f.status}`,f.rooms!=="الكل"&&`غرف: ${f.rooms}`,f.baths!=="الكل"&&`حمامات: ${f.baths}`,f.balcony!=="الكل"&&`بلكونة: ${f.balcony==="1"?"نعم":"لا"}`,f.minPrice!==""&&`من: ${f.minPrice}`,f.maxPrice!==""&&`إلى: ${f.maxPrice}`].filter(Boolean).join(" • ");
+  state.history=[{...f,label,date:new Date().toLocaleString("ar-JO",{dateStyle:"short",timeStyle:"short"})},...state.history.filter(h=>h.label!==label)].slice(0,12);
+  if(state.user) persistState();
+}
+function filtered(){
+  let ps=[...state.properties],f=state.filter;
+  if(f.q){const q=f.q.toLowerCase();ps=ps.filter(p=>`${p.name} ${p.code} ${p.area} ${p.notes||""}`.toLowerCase().includes(q))}
+  if(f.area!=="الكل")ps=ps.filter(p=>p.area===f.area);
+  if(f.status!=="الكل")ps=ps.filter(p=>p.status===f.status);
+  if(f.rooms!=="الكل")ps=ps.filter(p=>String(p.rooms)===f.rooms);
+  if(f.baths!=="الكل")ps=ps.filter(p=>String(p.baths)===f.baths);
+  if(f.balcony!=="الكل")ps=ps.filter(p=>String(!!p.balcony)===(f.balcony==="1"));
+  if(f.minPrice!=="")ps=ps.filter(p=>Number(p.price)>=Number(f.minPrice));
+  if(f.maxPrice!=="")ps=ps.filter(p=>Number(p.price)<=Number(f.maxPrice));
+  if(f.sort==="priceAsc")ps.sort((a,b)=>Number(a.price)-Number(b.price));
+  if(f.sort==="priceDesc")ps.sort((a,b)=>Number(b.price)-Number(a.price));
+  return ps;
+}
+function searchForm(){
+  const f=state.filter;
+  return `<form id="searchForm" class="filters">
+    <div class="field search"><label>بحث</label><input id="q" value="${esc(f.q)}" placeholder="الكود أو الاسم أو المنطقة"></div>
+    <div class="field"><label>المنطقة</label><select id="area">${AREAS.map(x=>`<option ${x===f.area?"selected":""}>${esc(x)}</option>`).join("")}</select></div>
+    <div class="field"><label>الحالة</label><select id="status">${["الكل","متاحة","مؤجرة","محجوزة"].map(x=>`<option ${x===f.status?"selected":""}>${x}</option>`).join("")}</select></div>
+    <div class="field"><label>الغرف</label><select id="rooms">${["الكل","1","2","3","4","5","6"].map(x=>`<option ${x===f.rooms?"selected":""}>${x}</option>`).join("")}</select></div>
+    <div class="field"><label>الحمامات</label><select id="baths">${["الكل","1","2","3","4","5"].map(x=>`<option ${x===f.baths?"selected":""}>${x}</option>`).join("")}</select></div>
+    <div class="field"><label>بلكونة</label><select id="balcony"><option value="الكل">الكل</option><option value="1" ${f.balcony==="1"?"selected":""}>نعم</option><option value="0" ${f.balcony==="0"?"selected":""}>لا</option></select></div>
+    <div class="field"><label>السعر من</label><input id="minPrice" type="number" value="${esc(f.minPrice)}"></div>
+    <div class="field"><label>السعر إلى</label><input id="maxPrice" type="number" value="${esc(f.maxPrice)}"></div>
+    <div class="field"><label>الترتيب</label><select id="sort"><option value="newest" ${f.sort==="newest"?"selected":""}>الأحدث</option><option value="priceAsc" ${f.sort==="priceAsc"?"selected":""}>الأقل سعراً</option><option value="priceDesc" ${f.sort==="priceDesc"?"selected":""}>الأعلى سعراً</option></select></div>
+    <button class="btn">🔎 بحث</button>
+  </form>`;
+}
+function historyBar(){
+  if(!state.history.length)return "";
+  return `<div class="history-bar"><b>سجل البحث</b>${state.history.slice(0,8).map((h,i)=>`<button class="history-chip" data-history="${i}">${esc(h.label)}</button>`).join("")}</div>`;
+}
+function cards(ps,admin=false){
+  if(!ps.length)return `<div class="empty">لا توجد شقق مطابقة للبحث.</div>`;
+  return `<div class="cards">${ps.map(p=>`<article class="card">
+    <div class="card-media">
+      <img src="${esc((p.images||[])[0]||"https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=82")}" alt="${esc(p.name)}">
+      <span class="badge ${statusClass(p.status)}">${esc(p.status)}</span>
+      <span class="photo-count">📷 ${(p.images||[]).length}</span>
+    </div>
+    <div class="card-body"><h3>${esc(p.name)}</h3><div class="muted">#${esc(p.code)} • ${esc(p.area)}</div>
+      <div class="card-meta"><span>🛏 ${p.rooms||0}</span><span>🛁 ${p.baths||0}</span><span>🌿 ${p.balcony?"نعم":"لا"}</span><span>💰 ${Number(p.price||0).toLocaleString("ar-JO")}</span></div>
+      <div class="card-actions"><button class="ghost-btn" data-view="${p.id}">التفاصيل</button>${admin?`<button class="danger-btn" data-delete="${p.id}">حذف</button>`:""}</div>
+    </div>
+  </article>`).join("")}</div>`;
+}
+function header(){
+  return `<header class="topbar"><button class="brand-btn" id="homeBtn"><span class="brand-mark">⌂</span><span>عقارات غرب عمان<small>${state.user?"لوحة الإدارة":"العقارات المتاحة"}</small></span></button>
+    <div class="top-actions">${state.user?`<button class="ghost-btn" id="logout">خروج</button>`:`<button class="ghost-btn" id="loginBtn">🔐 دخول</button>`}</div></header>`;
+}
+function publicHome(){
+  return `${header()}<main class="content">
+    <section class="hero"><div class="hero-content"><div class="eyebrow">♛ الأزرق الراقي</div><h1>${esc(state.settings.heroTitle)}</h1><p>${esc(state.settings.heroSubtitle)}</p><div class="hero-actions"><button class="btn" id="scrollSearch">استعراض العقارات</button></div></div></section>
+    <section class="panel landing-search" id="landingSearch"><div class="panel-title"><h2>🔎 البحث عن شقة</h2></div>${historyBar()}${searchForm()}${cards(filtered())}</section>
+  </main>`;
+}
+function sidebar(){
+  const items=[["dashboard","⌂","الرئيسية"],["properties","▦","الشقق"],["tenants","♙","المستأجرين"],["reports","▥","التقارير"],["settings","⚙","الإعدادات"],["admins","♙","إدارة المديرين"],["messages","✉","المحادثات"]];
+  return `<aside class="sidebar"><div class="side-title">لوحة التحكم</div>${items.filter(x=>x[0]==="admins"?state.user.role==="owner":can(x[0])).map(x=>`<button class="nav-item ${state.page===x[0]?"active":""}" data-page="${x[0]}">${x[1]} <span>${x[2]}</span></button>`).join("")}<div class="side-user"><b>${esc(state.user.name)}</b><br>${state.user.role==="owner"?"المالك":"مدير النظام"}</div></aside>`;
+}
+function adminShell(body){return `${header()}<div class="layout">${sidebar()}<main class="content">${body}</main></div>`}
+function dashboard(){
+  const p=state.properties;
+  const soon=p.filter(x=>x.status!=="متاحة"&&x.availability_date&&daysUntil(x.availability_date)>=0&&daysUntil(x.availability_date)<=Number(x.alert_days??state.settings.notificationDays??7));
+  return `<section class="hero compact"><button class="icon-btn closePage page-close">✕</button><div class="hero-content"><div class="eyebrow">♛ لوحة الإدارة</div><h1>مرحباً ${esc(state.user.name)}</h1><p>بيانات العقارات محفوظة في Supabase.</p></div></section>
+  ${soon.length?`<button class="alert-panel" id="soonBtn">🔴 ${soon.length} ${soon.length===1?"شقة ستصبح":"شقق ستصبح"} متاحة قريباً</button>`:""}
+  <div class="stats"><div class="stat green"><b>متاحة</b><strong>${p.filter(x=>x.status==="متاحة").length}</strong></div><div class="stat blue"><b>مؤجرة</b><strong>${p.filter(x=>x.status==="مؤجرة").length}</strong></div><div class="stat orange"><b>محجوزة</b><strong>${p.filter(x=>x.status==="محجوزة").length}</strong></div><div class="stat red"><b>إجمالي الشقق</b><strong>${p.length}</strong></div></div>`;
+}
+function propertiesPage(){
+  return `<section class="panel"><div class="panel-title"><div><h2>إدارة الشقق</h2><p class="muted">الإضافة والتعديل والحذف محفوظة في قاعدة البيانات.</p></div><div class="btn-row"><button class="btn" id="newProperty">＋ إضافة شقة</button><button class="icon-btn closePage">✕</button></div></div>${historyBar()}${searchForm()}${cards(filtered(),true)}</section>`;
+}
+function settingsPage(){
+  const s=state.settings;
+  return `<section class="panel"><div class="panel-title"><h2>الإعدادات</h2><button class="icon-btn closePage">✕</button></div>
+    <form id="settingsForm" class="form-grid">
+      <div class="field"><label>رقم واتساب المشاركة</label><input id="whatsapp" value="${esc(s.whatsapp||"")}"></div>
+      <div class="field"><label>عدد أيام تنبيه قرب التوفر</label><input id="notificationDays" type="number" min="0" value="${Number(s.notificationDays??7)}"></div>
+      <div class="field full"><label>عنوان الصفحة الرئيسية</label><input id="heroTitle" value="${esc(s.heroTitle||"")}"></div>
+      <div class="field full"><label>الوصف الرئيسي</label><textarea id="heroSubtitle">${esc(s.heroSubtitle||"")}</textarea></div>
+      <div class="field"><label>الوضع الفاتح</label><select id="light"><option value="0" ${!s.light?"selected":""}>لا</option><option value="1" ${s.light?"selected":""}>نعم</option></select></div>
+      <div class="field"><label>التصميم</label><select id="design"><option value="blue" ${(s.design||"blue")==="blue"?"selected":""}>الأزرق الراقي</option><option value="turquoise" ${s.design==="turquoise"?"selected":""}>التركواز الفاخر</option><option value="gold" ${s.design==="gold"?"selected":""}>الأبيض والذهبي الراقي</option></select></div>
+      <div class="field"><label>صوت التنبيه</label><select id="soundEnabled"><option value="1" ${s.soundEnabled!==false?"selected":""}>مفعل</option><option value="0" ${s.soundEnabled===false?"selected":""}>متوقف</option></select></div>
+      <div class="full btn-row"><button class="btn">حفظ الإعدادات</button></div>
+    </form>
+    <hr><div class="panel-title"><h3>الأمان</h3></div>
+    <form id="passwordForm" class="form-grid"><div class="field"><label>كلمة المرور الجديدة</label><input id="newPassword" type="password" minlength="6" required></div><div class="full btn-row"><button class="btn">تغيير كلمة المرور الخاصة بي</button></div></form>
+    ${state.user.role==="owner"?`<hr><form id="ownerPasswordForm" class="form-grid"><div class="field"><label>كلمة سر المالك الجديدة</label><input id="ownerPassword" type="password" minlength="6" required></div><div class="full btn-row"><button class="btn">تعديل كلمة سر المالك</button></div></form>`:""}
+  </section>`;
+}
+async function usersPage(){
+  let users=[];try{users=await api("/api/users")}catch(e){return `<section class="panel"><h2>إدارة المديرين</h2><p>${esc(e.message)}</p></section>`}
+  return `<section class="panel"><div class="panel-title"><h2>إدارة المديرين والصلاحيات</h2><button class="btn" id="newAdmin">＋ إضافة مدير</button></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th></tr></thead><tbody>
+    ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role==="owner"?"المالك":"مدير"}</td><td>${u.role==="owner"?"كامل":(u.permissions||[]).map(x=>PERMISSIONS.find(p=>p[0]===x)?.[1]||x).join("، ")}</td></tr>`).join("")}
+    </tbody></table></div></section>`;
+}
+function modal(html){$("#modal-root")?.remove();const r=document.createElement("div");r.id="modal-root";r.innerHTML=`<div class="modal"><div class="modal-box">${html}</div></div>`;document.body.appendChild(r);r.addEventListener("click",e=>{if(e.target.classList.contains("modal"))r.remove();});$(".closeModal",r)?.addEventListener("click",()=>r.remove())}
+function details(p){
+  const text=`🏠 عقارات غرب عمان\n🔑 الكود: ${p.code}\n📍 المنطقة: ${p.area}\n🛏 الغرف: ${p.rooms||0}\n🛁 الحمامات: ${p.baths||0}\n🌿 بلكونة: ${p.balcony?"نعم":"لا"}\n📐 المساحة: ${p.area_size||"-"} م²\n💰 السعر: ${p.price||0} دينار\n📌 الحالة: ${p.status}`;
+  modal(`<div class="modal-head"><h2>${esc(p.name)}</h2><button class="icon-btn closeModal">✕</button></div>
+    <div class="muted">#${esc(p.code)} • ${esc(p.area)}</div>
+    <div class="details-gallery">${(p.images||[]).map(x=>`<img src="${esc(x)}">`).join("")||"<div class='empty'>لا توجد صور</div>"}</div>
+    ${p.video_url?`<video controls src="${esc(p.video_url)}"></video>`:""}
+    <div class="detail-grid"><div><b>الغرف</b><span>${p.rooms||0}</span></div><div><b>الحمامات</b><span>${p.baths||0}</span></div><div><b>البلكونة</b><span>${p.balcony?"نعم":"لا"}</span></div><div><b>المساحة</b><span>${p.area_size||"-"} م²</span></div><div><b>السعر</b><span>${p.price||0} دينار</span></div><div><b>الحالة</b><span class="badge ${statusClass(p.status)}">${esc(p.status)}</span></div></div>
+    <div class="copy-box"><label>التفاصيل الكاملة</label><textarea id="shareText">${esc(text)}</textarea></div>
+    <div class="btn-row"><button class="btn" id="copyDetails">نسخ التفاصيل</button>${state.user&&can("properties")?`<button class="ghost-btn" id="editProperty">تعديل</button>`:""}${state.user&&state.user.role==="owner"&&state.settings.whatsapp?`<button class="btn" id="waShare">واتساب</button>`:""}</div>`);
+  $("#copyDetails")?.addEventListener("click",async()=>{await navigator.clipboard?.writeText(text);toast("تم نسخ التفاصيل")});
+  $("#editProperty")?.addEventListener("click",()=>propertyModal(p));
+  $("#waShare")?.addEventListener("click",()=>{const n=String(state.settings.whatsapp).replace(/\D/g,"");location.href=`https://wa.me/${n}?text=${encodeURIComponent(text)}`});
+}
+function propertyModal(p=null){
+  let imgs=[...(p?.images||[])];
+  modal(`<div class="modal-head"><h2>${p?"تعديل الشقة":"إضافة شقة"}</h2><button class="icon-btn closeModal">✕</button></div>
+    <form id="propertyForm" class="form-grid">
+      <div class="field"><label>كود الشقة</label><input id="code" required value="${esc(p?.code||"")}"></div>
+      <div class="field"><label>اسم الشقة</label><input id="name" required value="${esc(p?.name||"")}"></div>
+      <div class="field"><label>المنطقة</label><select id="area">${AREAS.slice(1).map(x=>`<option ${x===p?.area?"selected":""}>${esc(x)}</option>`).join("")}</select></div>
+      <div class="field"><label>الحالة</label><select id="status">${["متاحة","مؤجرة","محجوزة"].map(x=>`<option ${x===(p?.status||"متاحة")?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>عدد الغرف</label><input id="rooms" type="number" min="0" value="${p?.rooms||0}"></div>
+      <div class="field"><label>عدد الحمامات</label><input id="baths" type="number" min="0" value="${p?.baths||0}"></div>
+      <div class="field"><label>البلكونة</label><select id="balcony"><option value="1" ${p?.balcony?"selected":""}>نعم</option><option value="0" ${!p?.balcony?"selected":""}>لا</option></select></div>
+      <div class="field"><label>الطابق</label><input id="floor" type="number" value="${p?.floor??""}"></div>
+      <div class="field"><label>المساحة م²</label><input id="areaSize" type="number" value="${p?.area_size??""}"></div>
+      <div class="field"><label>السعر الشهري</label><input id="price" type="number" value="${p?.price??""}"></div>
+      <div class="field"><label>تاريخ التوفر</label><input id="availability" type="date" value="${esc(p?.availability_date||"")}"></div>
+      <div class="field"><label>أيام التنبيه لهذه الشقة</label><input id="alertDays" type="number" min="0" value="${p?.alert_days??state.settings.notificationDays??7}"></div>
+      <div class="field full"><label>ملاحظات</label><textarea id="notes">${esc(p?.notes||"")}</textarea></div>
+      <div class="field full"><label>رابط الفيديو</label><input id="video" value="${esc(p?.video_url||"")}" placeholder="https://..."></div>
+      <div class="field full"><label>صور JPG / PNG / WEBP — حتى 30 صورة</label><input id="images" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="photos" id="previews">${imgs.map(x=>`<div class="photo"><img src="${esc(x)}"><button type="button" class="photo-remove" data-remove-image="${esc(x)}">×</button></div>`).join("")}</div></div>
+      <div class="full btn-row"><button class="btn" id="saveProperty">حفظ الشقة</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div>
+    </form>`);
+  const previews=$("#previews");
+  $("#images").addEventListener("change",e=>{
+    for(const f of [...e.target.files].slice(0,30-imgs.length)){
+      if(!["image/jpeg","image/png","image/webp"].includes(f.type)){toast("يسمح فقط JPG / PNG / WEBP",false);continue}
+      const u=URL.createObjectURL(f);const d=document.createElement("div");d.className="photo pending";d.innerHTML=`<img src="${u}"><span>جديد</span>`;previews.appendChild(d);imgs.push({file:f});
+    }
+  });
+  previews.addEventListener("click",e=>{const b=e.target.closest("[data-remove-image]");if(!b)return;imgs=imgs.filter(x=>x!==b.dataset.removeImage);b.closest(".photo")?.remove()});
+  $("#propertyForm").addEventListener("submit",async e=>{
+    e.preventDefault();const btn=$("#saveProperty");btn.disabled=true;btn.textContent="جاري الحفظ...";
+    try{
+      const files=imgs.filter(x=>typeof x==="object"&&x.file).map(x=>x.file);
+      let uploaded=[];
+      if(files.length){
+        const fd=new FormData();files.forEach(f=>fd.append("images",f));
+        const u=await api("/api/upload",{method:"POST",body:fd});uploaded=u.urls||[];
+      }
+      const old=imgs.filter(x=>typeof x==="string");
+      const payload={code:$("#code").value.trim(),name:$("#name").value.trim(),area:$("#area").value,status:$("#status").value,rooms:$("#rooms").value,baths:$("#baths").value,balcony:$("#balcony").value,floor:$("#floor").value,areaSize:$("#areaSize").value,price:$("#price").value,availabilityDate:$("#availability").value,alertDays:$("#alertDays").value,notes:$("#notes").value,video:$("#video").value,images:[...old,...uploaded]};
+      const saved=p?await api(`/api/properties/${p.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}):await api("/api/properties",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      $("#modal-root")?.remove();toast("تم حفظ الشقة والصور بنجاح");await loadAdmin();
+    }catch(e){toast(e.message,false);btn.disabled=false;btn.textContent="حفظ الشقة"}
+  });
+}
+function adminModal(){
+  modal(`<div class="modal-head"><h2>إضافة مدير وصلاحيات</h2><button class="icon-btn closeModal">✕</button></div><form id="adminForm" class="form-grid">
+    <div class="field"><label>اسم المدير</label><input id="adminName" required></div><div class="field"><label>البريد الإلكتروني</label><input id="adminEmail" type="email" required></div><div class="field"><label>كلمة المرور</label><input id="adminPass" type="password" minlength="6" required></div>
+    <div class="field full"><label>الصلاحيات</label><div class="checks">${PERMISSIONS.map(p=>`<label><input type="checkbox" value="${p[0]}" ${["dashboard","properties"].includes(p[0])?"checked":""}> ${p[1]}</label>`).join("")}</div></div>
+    <div class="full btn-row"><button class="btn">إنشاء المدير</button></div></form>`);
+  $("#adminForm").addEventListener("submit",async e=>{e.preventDefault();try{
+    const permissions=$$("#adminForm input[type=checkbox]:checked").map(x=>x.value);
+    await api("/api/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:$("#adminName").value,email:$("#adminEmail").value,password:$("#adminPass").value,permissions})});
+    $("#modal-root")?.remove();toast("تم إنشاء المدير");render();
+  }catch(err){toast(err.message,false)}});
+}
+function soonModal(){
+  const s=state.properties.filter(x=>x.status!=="متاحة"&&x.availability_date&&daysUntil(x.availability_date)>=0&&daysUntil(x.availability_date)<=Number(x.alert_days??state.settings.notificationDays??7));
+  modal(`<div class="modal-head"><h2>🔔 الشقق القريبة من التوفر</h2><button class="icon-btn closeModal">✕</button></div>${s.map(p=>`<div class="soon-card"><b>#${esc(p.code)} — ${esc(p.name)}</b><span>${esc(p.area)} • ${formatDate(p.availability_date)}</span></div>`).join("")||"<div class='empty'>لا توجد تنبيهات.</div>"}`);
+}
+function page(){
+  if(state.page==="dashboard")return dashboard();
+  if(state.page==="properties")return propertiesPage();
+  if(state.page==="settings")return settingsPage();
+  if(state.page==="admins")return usersPage();
+  return `<section class="panel"><h2>${esc((PERMISSIONS.find(x=>x[0]===state.page)||["","القسم"])[1])}</h2><div class="empty">هذا القسم جاهز للربط بالبيانات الإضافية عند الحاجة.</div></section>`;
+}
+function loginView(){
+  return `<div class="login"><div class="login-box"><div class="brand-large"><span class="brand-mark">⌂</span><b>عقارات غرب عمان</b></div><h1>تسجيل الدخول</h1><p>الدخول للمالك والمديرين المصرح لهم فقط</p><form id="loginForm"><div class="field"><label>البريد الإلكتروني</label><input id="email" type="email" required></div><div class="field"><label>كلمة المرور</label><input id="password" type="password" required></div><button class="btn">دخول إلى النظام</button><button type="button" class="ghost-btn" id="backHome">العودة</button></form></div></div>`;
+}
+function render(){
+  document.body.className=(state.settings.light?"light ":"")+"design-"+(state.settings.design||"blue");
+  if(!state.user){$("#app").innerHTML=publicHome();bindPublic();return}
+  $("#app").innerHTML=adminShell(page());bindAdmin();
+}
+function bindPublic(){
+  $("#loginBtn")?.addEventListener("click",()=>{$("#app").innerHTML=loginView();bindLogin()});
+  $("#homeBtn")?.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"}));
+  $("#scrollSearch")?.addEventListener("click",()=>$("#landingSearch")?.scrollIntoView({behavior:"smooth"}));
+  bindSearch(false);
+  $$("[data-view]").forEach(b=>b.addEventListener("click",()=>details(state.properties.find(p=>String(p.id)===String(b.dataset.view)))));
+  $$("[data-history]").forEach(b=>b.addEventListener("click",()=>{const h=state.history[Number(b.dataset.history)];if(h){state.filter={q:h.q||"",area:h.area||"الكل",status:h.status||"الكل",rooms:h.rooms||"الكل",baths:h.baths||"الكل",balcony:h.balcony||"الكل",minPrice:h.minPrice||"",maxPrice:h.maxPrice||"",sort:h.sort||"newest"};render()}}));
+}
+function bindLogin(){
+  $("#backHome")?.addEventListener("click",loadPublic);
+  $("#loginForm")?.addEventListener("submit",async e=>{e.preventDefault();try{
+    const d=await api("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("#email").value,password:$("#password").value})});
+    state.user=d.user;state.token=d.token;localStorage.setItem("wam_token",d.token);localStorage.setItem("wam_user",JSON.stringify(d.user));state.page="dashboard";await loadAdmin();
+  }catch(err){toast(err.message,false)}});
+}
+function bindSearch(admin){
+  $("#searchForm")?.addEventListener("submit",async e=>{e.preventDefault();state.filter={q:$("#q").value.trim(),area:$("#area").value,status:$("#status").value,rooms:$("#rooms").value,baths:$("#baths").value,balcony:$("#balcony").value,minPrice:$("#minPrice").value,maxPrice:$("#maxPrice").value,sort:$("#sort").value};saveHistory();render()});
+  $$("[data-view]").forEach(b=>b.addEventListener("click",()=>details(state.properties.find(p=>String(p.id)===String(b.dataset.view)))));
+  if(admin)$$("[data-delete]").forEach(b=>b.addEventListener("click",async()=>{if(confirm("حذف الشقة؟"))try{await api(`/api/properties/${b.dataset.delete}`,{method:"DELETE"});toast("تم الحذف");await loadAdmin()}catch(e){toast(e.message,false)}}));
+}
+function bindAdmin(){
+  $("#logout")?.addEventListener("click",()=>{state.user=null;state.token="";localStorage.removeItem("wam_token");localStorage.removeItem("wam_user");state.page="dashboard";loadPublic()});
+  $("#homeBtn")?.addEventListener("click",()=>{state.page="dashboard";render()});\n  $(".closePage")?.addEventListener("click",()=>{state.page="dashboard";render()});
+  $$("[data-page]").forEach(b=>b.addEventListener("click",async()=>{state.page=b.dataset.page;if(state.page==="properties")await loadAdmin();else render()}));
+  if(state.page==="properties")bindSearch(true);
+  $("#newProperty")?.addEventListener("click",()=>propertyModal());
+  $("#newAdmin")?.addEventListener("click",adminModal);
+  $("#soonBtn")?.addEventListener("click",soonModal);
+  $("#settingsForm")?.addEventListener("submit",async e=>{e.preventDefault();state.settings.whatsapp=$("#whatsapp").value.trim();state.settings.notificationDays=Number($("#notificationDays").value||7);state.settings.heroTitle=$("#heroTitle").value.trim();state.settings.heroSubtitle=$("#heroSubtitle").value.trim();state.settings.light=$("#light").value==="1";state.settings.design=$("#design").value;state.settings.soundEnabled=$("#soundEnabled").value==="1";await persistState();render();toast("تم حفظ الإعدادات")});
+  $("#passwordForm")?.addEventListener("submit",async e=>{e.preventDefault();try{await api("/api/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({newPassword:$("#newPassword").value})});e.target.reset();toast("تم تغيير كلمة المرور")}catch(err){toast(err.message,false)}});
+  $("#ownerPasswordForm")?.addEventListener("submit",async e=>{e.preventDefault();try{await api("/api/admin/change-owner-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({newPassword:$("#ownerPassword").value})});e.target.reset();toast("تم تغيير كلمة سر المالك")}catch(err){toast(err.message,false)}});
+  $$("[data-view]").forEach(b=>b.addEventListener("click",()=>details(state.properties.find(p=>String(p.id)===String(b.dataset.view)))));
+  $$("[data-delete]").forEach(b=>b.addEventListener("click",async()=>{if(confirm("حذف الشقة؟"))try{await api(`/api/properties/${b.dataset.delete}`,{method:"DELETE"});toast("تم الحذف");await loadAdmin()}catch(e){toast(e.message,false)}}));
+}
+(async()=>{
+  const t=localStorage.getItem("wam_token"),u=JSON.parse(localStorage.getItem("wam_user")||"null");
+  if(t&&u){state.token=t;state.user=u;try{await loadAdmin();return}catch{localStorage.removeItem("wam_token");localStorage.removeItem("wam_user");state.user=null;state.token=""}}
+  await loadPublic();
+})();
