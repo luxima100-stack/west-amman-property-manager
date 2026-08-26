@@ -1,28 +1,26 @@
-WEST AMMAN PROPERTY MANAGER FINAL 19.0.0
-ZIP ROOT FLAT: YES
-index.html: PASS
-app.css: PASS
-app.js: PASS
-server.js: PASS
-package.json: PASS
-render.yaml: PASS
-manifest.json: PASS
-SUPABASE_SETUP_WEST_AMMAN.sql: PASS
-README_AR.txt: PASS
+نسخة نهائية مُراجعة - عقارات غرب عمان
 
-FUNCTIONS INCLUDED:
-[PASS] Public property search
-[PASS] Search history horizontal bar
-[PASS] Search result list contains only matching apartments
-[PASS] Property form excludes tenant name / tenant phone / apartment description
-[PASS] JPG / PNG / WEBP multi-upload
-[PASS] Supabase Storage upload then property URL persistence
-[PASS] Apartment edit/delete
-[PASS] Full Arabic settings page + 3 design choices
-[PASS] Arabic admin permissions
-[PASS] Owner password change
-[PASS] Current logged-in user password change
-[PASS] Close X on modal windows
-[PASS] Near-availability alert per apartment
-[PASS] Supabase app_state persistence
-[PASS] Flat ZIP with no internal folders
+الإصدار: 20.0.0
+
+تمت مراجعة النسخة وإصلاح السبب المباشر للشاشة السوداء:
+- إصلاح خطأ JavaScript كان يمنع app.js من التحميل بالكامل.
+- إضافة حماية عند قراءة بيانات تسجيل الدخول من localStorage.
+- تحسين نوافذ الصفحات وإضافة زر × للرجوع في الصفحات الداخلية.
+- إبقاء سجل البحث كشريط أفقي في أعلى قسم البحث، وليس صندوقاً أسفل نتائج الشقق.
+- إصلاح حذف الصور الجديدة قبل الحفظ.
+- تحسين رفع الصور باستخدام multipart upload عبر Multer ثم Supabase Storage.
+- الإبقاء على حفظ الصور في قاعدة البيانات مع بيانات الشقة.
+- الإعدادات بالعربية.
+- تغيير كلمة مرور المستخدم الحالي من الإعدادات.
+- للمالك: إمكانية تغيير كلمة سر المالك من داخل التطبيق.
+- إدارة المديرين والصلاحيات بالعربية.
+- Render مضبوط على Node + npm start + PORT عبر server.js.
+
+ملاحظة مهمة:
+هذه النسخة تحتاج نفس متغيرات Render الموجودة لديك:
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_BUCKET=property-images
+OWNER_EMAIL
+
+بعد رفع الملفات إلى GitHub يجب عمل Manual Deploy في Render.

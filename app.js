@@ -144,7 +144,7 @@ function settingsPage(){
 }
 async function usersPage(){
   let users=[];try{users=await api("/api/users")}catch(e){return `<section class="panel"><h2>إدارة المديرين</h2><p>${esc(e.message)}</p></section>`}
-  return `<section class="panel"><div class="panel-title"><h2>إدارة المديرين والصلاحيات</h2><button class="btn" id="newAdmin">＋ إضافة مدير</button></div>
+  return `<section class="panel"><div class="panel-title"><h2>إدارة المديرين والصلاحيات</h2><div class="btn-row"><button class="btn" id="newAdmin">＋ إضافة مدير</button><button class="icon-btn closePage">✕</button></div></div>
     <div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th></tr></thead><tbody>
     ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role==="owner"?"المالك":"مدير"}</td><td>${u.role==="owner"?"كامل":(u.permissions||[]).map(x=>PERMISSIONS.find(p=>p[0]===x)?.[1]||x).join("، ")}</td></tr>`).join("")}
     </tbody></table></div></section>`;
@@ -188,10 +188,10 @@ function propertyModal(p=null){
   $("#images").addEventListener("change",e=>{
     for(const f of [...e.target.files].slice(0,30-imgs.length)){
       if(!["image/jpeg","image/png","image/webp"].includes(f.type)){toast("يسمح فقط JPG / PNG / WEBP",false);continue}
-      const u=URL.createObjectURL(f);const d=document.createElement("div");d.className="photo pending";d.innerHTML=`<img src="${u}"><span>جديد</span>`;previews.appendChild(d);imgs.push({file:f});
+      const u=URL.createObjectURL(f);const item={file:f,url:u};const d=document.createElement("div");d.className="photo pending";d.innerHTML=`<img src="${u}"><span>جديد</span><button type="button" class="photo-remove" data-remove-pending>×</button>`;d.dataset.imageKey=String(imgs.length);previews.appendChild(d);imgs.push(item);
     }
   });
-  previews.addEventListener("click",e=>{const b=e.target.closest("[data-remove-image]");if(!b)return;imgs=imgs.filter(x=>x!==b.dataset.removeImage);b.closest(".photo")?.remove()});
+  previews.addEventListener("click",e=>{const b=e.target.closest("[data-remove-image],[data-remove-pending]");if(!b)return;const card=b.closest(".photo");if(b.hasAttribute("data-remove-image")){imgs=imgs.filter(x=>x!==b.dataset.removeImage)}else{const key=card?.dataset.imageKey;const item=key!=null?imgs[Number(key)]:null;if(item?.url)URL.revokeObjectURL(item.url);imgs=imgs.filter(x=>x!==item)}card?.remove()});
   $("#propertyForm").addEventListener("submit",async e=>{
     e.preventDefault();const btn=$("#saveProperty");btn.disabled=true;btn.textContent="جاري الحفظ...";
     try{
@@ -228,7 +228,7 @@ function page(){
   if(state.page==="properties")return propertiesPage();
   if(state.page==="settings")return settingsPage();
   if(state.page==="admins")return usersPage();
-  return `<section class="panel"><h2>${esc((PERMISSIONS.find(x=>x[0]===state.page)||["","القسم"])[1])}</h2><div class="empty">هذا القسم جاهز للربط بالبيانات الإضافية عند الحاجة.</div></section>`;
+  return `<section class="panel"><div class="panel-title"><h2>${esc((PERMISSIONS.find(x=>x[0]===state.page)||["","القسم"])[1])}</h2><button class="icon-btn closePage">✕</button></div><div class="empty">هذا القسم جاهز للربط بالبيانات الإضافية عند الحاجة.</div></section>`;
 }
 function loginView(){
   return `<div class="login"><div class="login-box"><div class="brand-large"><span class="brand-mark">⌂</span><b>عقارات غرب عمان</b></div><h1>تسجيل الدخول</h1><p>الدخول للمالك والمديرين المصرح لهم فقط</p><form id="loginForm"><div class="field"><label>البريد الإلكتروني</label><input id="email" type="email" required></div><div class="field"><label>كلمة المرور</label><input id="password" type="password" required></div><button class="btn">دخول إلى النظام</button><button type="button" class="ghost-btn" id="backHome">العودة</button></form></div></div>`;
@@ -260,7 +260,8 @@ function bindSearch(admin){
 }
 function bindAdmin(){
   $("#logout")?.addEventListener("click",()=>{state.user=null;state.token="";localStorage.removeItem("wam_token");localStorage.removeItem("wam_user");state.page="dashboard";loadPublic()});
-  $("#homeBtn")?.addEventListener("click",()=>{state.page="dashboard";render()});\n  $(".closePage")?.addEventListener("click",()=>{state.page="dashboard";render()});
+  $("#homeBtn")?.addEventListener("click",()=>{state.page="dashboard";render()});
+  $(".closePage")?.addEventListener("click",()=>{state.page="dashboard";render()});
   $$("[data-page]").forEach(b=>b.addEventListener("click",async()=>{state.page=b.dataset.page;if(state.page==="properties")await loadAdmin();else render()}));
   if(state.page==="properties")bindSearch(true);
   $("#newProperty")?.addEventListener("click",()=>propertyModal());
@@ -273,7 +274,9 @@ function bindAdmin(){
   $$("[data-delete]").forEach(b=>b.addEventListener("click",async()=>{if(confirm("حذف الشقة؟"))try{await api(`/api/properties/${b.dataset.delete}`,{method:"DELETE"});toast("تم الحذف");await loadAdmin()}catch(e){toast(e.message,false)}}));
 }
 (async()=>{
-  const t=localStorage.getItem("wam_token"),u=JSON.parse(localStorage.getItem("wam_user")||"null");
+  const t=localStorage.getItem("wam_token");
+  let u=null;try{u=JSON.parse(localStorage.getItem("wam_user")||"null")}catch{localStorage.removeItem("wam_user")}
+
   if(t&&u){state.token=t;state.user=u;try{await loadAdmin();return}catch{localStorage.removeItem("wam_token");localStorage.removeItem("wam_user");state.user=null;state.token=""}}
   await loadPublic();
 })();

@@ -4,7 +4,14 @@
   "private": true,
   "description": "نظام إدارة عقارات غرب عمان - نسخة نهائية Supabase",
   "main": "server.js",
-  "scripts": {"start": "node server.js"},
-  "engines": {"node": ">=18"},
-  "dependencies": {"express": "^5.1.0"}
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  }
 }

@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const multer = require("multer");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -13,6 +14,7 @@ const OWNER_EMAIL = (process.env.OWNER_EMAIL || "").trim().toLowerCase();
 app.disable("x-powered-by");
 app.use(express.json({limit:"30mb"}));
 app.use(express.urlencoded({extended:true,limit:"30mb"}));
+const upload = multer({storage:multer.memoryStorage(), limits:{files:30, fileSize:10*1024*1024}});
 
 function configured(){ return Boolean(SUPABASE_URL && SERVICE_KEY); }
 
@@ -156,33 +158,26 @@ app.delete("/api/properties/:id",staff,async(req,res)=>{
   catch(e){res.status(e.status||500).json({ok:false,message:e.message||"تعذر حذف الشقة."})}
 });
 
-/* Multipart upload. Node 18+ provides Request/FormData/File. */
-app.post("/api/upload",staff,async(req,res)=>{
+/* Multipart image upload. Files are kept in memory briefly, then stored in Supabase Storage. */
+app.post("/api/upload",staff,upload.array("images",30),async(req,res)=>{
   try{
-    const request=new Request(`http://localhost${req.originalUrl}`,{
-      method:"POST",headers:req.headers,body:req,duplex:"half"
-    });
-    const form=await request.formData();
-    const files=form.getAll("images").filter(x=>x && typeof x.arrayBuffer==="function").slice(0,30);
+    const files=Array.isArray(req.files)?req.files:[];
     const urls=[];
     for(const file of files){
-      const type=String(file.type||"");
+      const type=String(file.mimetype||"");
       if(!["image/jpeg","image/png","image/webp"].includes(type)) continue;
       const ext=type==="image/png"?"png":type==="image/webp"?"webp":"jpg";
-      const base=String(file.name||"image").replace(/[^a-zA-Z0-9._-]/g,"_").replace(/\.[^.]+$/,"").slice(0,70);
+      const base=String(file.originalname||"image").replace(/[^a-zA-Z0-9._-]/g,"_").replace(/\.[^.]+$/," ").trim().slice(0,70)||"image";
       const objectPath=`properties/${Date.now()}-${Math.random().toString(36).slice(2,10)}-${base}.${ext}`;
-      const bytes=Buffer.from(await file.arrayBuffer());
       const r=await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${objectPath}`,{
-        method:"POST",
-        headers:{apikey:SERVICE_KEY,Authorization:`Bearer ${SERVICE_KEY}`,"Content-Type":type,"x-upsert":"false"},
-        body:bytes
+        method:"POST",headers:{apikey:SERVICE_KEY,Authorization:`Bearer ${SERVICE_KEY}`,"Content-Type":type,"x-upsert":"false"},body:file.buffer
       });
       const text=await r.text();
       if(!r.ok) throw new Error(text||`فشل رفع الصورة (${r.status})`);
       urls.push(`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${objectPath}`);
     }
     res.json({ok:true,urls});
-  }catch(e){res.status(500).json({ok:false,message:e.message||"تعذر رفع الصور."})}
+  }catch(e){res.status(e.status||500).json({ok:false,message:e.message||"تعذر رفع الصور."})}
 });
 
 /* Settings and search history are stored in Supabase, not only in phone localStorage. */
@@ -278,6 +273,8 @@ app.post("/api/admin/change-owner-password",owner,async(req,res)=>{
     res.json({ok:true,message:"تم تغيير كلمة سر المالك."});
   }catch(e){res.status(e.status||500).json({ok:false,message:e.message||"تعذر تغيير كلمة سر المالك."})}
 });
+
+app.use((err,req,res,next)=>{if(err instanceof multer.MulterError){return res.status(400).json({ok:false,message:`خطأ في رفع الصور: ${err.message}`})}next(err)});
 
 /* Serve the flat project root. */
 app.use(express.static(ROOT,{index:"index.html",extensions:["html"]}));
