@@ -1,8 +1,8 @@
 {
   "name": "west-amman-property-manager",
-  "version": "16.0.0",
+  "version": "17.1.0",
   "private": true,
-  "description": "نظام إدارة عقارات غرب عمان - Supabase authentication and in-app admin creation",
+  "description": "نظام إدارة عقارات غرب عمان - النسخة الكاملة مع Supabase وتسجيل دخول آمن",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

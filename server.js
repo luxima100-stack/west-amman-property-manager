@@ -142,6 +142,16 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+async function normalizeImages(images) {
+  if (!Array.isArray(images)) return []; const result=[];
+  for (const item of images.slice(0,30)) { const s=String(item||''); if (!s.startsWith('data:image/')) { if(s) result.push(s); continue; }
+    const m=s.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/); if(!m) continue; const type=m[1],bytes=Buffer.from(m[2],'base64');
+    const ext=type==='image/png'?'png':type==='image/webp'?'webp':'jpg'; const objectPath=`${Date.now()}-${Math.random().toString(36).slice(2,10)}.${ext}`;
+    const r=await fetch(`${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(BUCKET)}/${encodeURIComponent(objectPath)}`,{method:'POST',headers:{apikey:SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':type,'x-upsert':'true'},body:bytes});
+    const text=await r.text(); if(!r.ok) throw new Error(text||`فشل رفع الصورة (${r.status})`); result.push(`${SUPABASE_URL}/storage/v1/object/public/${encodeURIComponent(BUCKET)}/${encodeURIComponent(objectPath)}`);
+  } return result;
+}
+
 /* ---------- Properties ---------- */
 app.get("/api/public/properties", async (req, res) => {
   try {
@@ -183,7 +193,7 @@ app.post("/api/properties", requireStaff, async (req, res) => {
       availability_date:b.availabilityDate || null,
       notes:String(b.notes || ""),
       video_url:String(b.video || ""),
-      images:Array.isArray(b.images) ? b.images.slice(0,30) : []
+      images:await normalizeImages(b.images)
     };
     const out = await sb("/rest/v1/properties", {
       method:"POST",
@@ -214,7 +224,7 @@ app.put("/api/properties/:id", requireStaff, async (req, res) => {
       availability_date:b.availabilityDate || null,
       notes:String(b.notes || ""),
       video_url:String(b.video || ""),
-      images:Array.isArray(b.images) ? b.images.slice(0,30) : []
+      images:await normalizeImages(b.images)
     };
     const out = await sb(`/rest/v1/properties?id=eq.${encodeURIComponent(req.params.id)}`, {
       method:"PATCH",
@@ -302,7 +312,12 @@ app.post("/api/admin/create", requireOwner, async (req, res) => {
   }
 });
 
-/* ---------- Image upload to Supabase Storage ---------- */
+/* ---------- User update / app state ---------- */
+app.put("/api/users/:id", requireOwner, async (req,res)=>{try{const id=String(req.params.id),name=String(req.body?.name||'').trim(),email=String(req.body?.email||'').trim().toLowerCase(),password=String(req.body?.password||''),permissions=Array.isArray(req.body?.permissions)?req.body.permissions.filter(x=>["dashboard","properties","tenants","reports","settings","admins","messages"].includes(x)):[];if(!name||!email)return res.status(400).json({ok:false,error:'أكمل الاسم والبريد الإلكتروني.'});const authBody={email,user_metadata:{name}};if(password)authBody.password=password;await sb(`/auth/v1/admin/users/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(authBody)});const rows=await sb(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({name,email,permissions})});res.json(rows?.[0]||{id,name,email,permissions})}catch(e){res.status(e.status||500).json({ok:false,error:e.message||'تعذر تعديل المستخدم.'})}});
+app.get("/api/app-state", requireStaff, async (req,res)=>{try{const rows=await sb(`/rest/v1/app_state?user_id=eq.${encodeURIComponent(req.staff.id)}&select=data`);res.json(rows?.[0]?.data||{})}catch(e){res.status(500).json({ok:false,error:e.message})}});
+app.put("/api/app-state", requireStaff, async (req,res)=>{try{const row={user_id:req.staff.id,data:req.body||{},updated_at:new Date().toISOString()};const rows=await sb('/rest/v1/app_state',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(row)});res.json(rows?.[0]||row)}catch(e){res.status(e.status||500).json({ok:false,error:e.message})}});
+
+/* ---------- Image upload to Supabase Storage ---------- ---------- */
 /* Node 18+ provides Request/FormData/File. This avoids adding multer. */
 app.post("/api/upload", requireStaff, async (req, res) => {
   try {
