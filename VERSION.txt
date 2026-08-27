@@ -1,3 +1,0 @@
-WEST AMMAN PROPERTY MANAGER FINAL 20.0.0
-ZIP root is flat: YES
-Supabase Auth + Database + Storage integrated.
