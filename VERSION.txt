@@ -1,3 +1,5 @@
-West Amman Property Manager
-Release: 18.3.0
-Base: original 18.0.0 design + image upload fix + Arabic admin/password management + settings completion
+WEST AMMAN PROPERTY MANAGER
+FINAL 18.4.0
+
+Base: النسخة القديمة 18.2
+إصلاحات نهائية: رفع الصور عبر multipart، حفظ روابط الصور مع الشقة، إعدادات كاملة، إدارة المناطق، تغيير كلمة سر المالك من صفحة المديرين، الحفاظ على التصميم القديم.

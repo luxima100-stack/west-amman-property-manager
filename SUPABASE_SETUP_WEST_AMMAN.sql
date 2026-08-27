@@ -47,6 +47,3 @@ on conflict(id) do update set public=true;
 
 -- إصلاحات التوافق للنسخ السابقة
 alter table public.properties add column if not exists alert_days integer not null default 7;
-
--- تأكد من أن حاوية الصور عامة لعرض الصور بروابطها داخل التطبيق
-update storage.buckets set public=true where id='property-images';
