@@ -1,0 +1,7 @@
+FINAL 19.0.0 — 2026-08-27
+Flat root build.
+Restored dark/gold West Amman design.
+Fixed image persistence using Supabase Storage.
+Owner-only admin/password management.
+Arabic settings, areas, alerts, backup, reports and messages.
+No public/src folders.
