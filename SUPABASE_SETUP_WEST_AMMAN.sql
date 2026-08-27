@@ -1,4 +1,4 @@
--- عقارات غرب عمان FINAL 19.0.0
+-- عقارات غرب عمان v19
 create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (
@@ -6,7 +6,7 @@ create table if not exists public.profiles (
   name text not null default '',
   email text not null default '',
   role text not null check (role in ('owner','admin')),
-  permissions text[] not null default array['dashboard','properties','reports','settings','messages'],
+  permissions text[] not null default array['dashboard','properties','tenants','reports','settings','admins','messages'],
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +23,7 @@ create table if not exists public.properties (
   baths integer not null default 0,
   balcony boolean not null default false,
   availability_date date,
+  alert_days integer not null default 7,
   notes text not null default '',
   video_url text not null default '',
   images text[] not null default '{}',
@@ -30,9 +31,11 @@ create table if not exists public.properties (
 );
 
 create table if not exists public.app_state (
-  key text primary key,
-  value jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
+  id integer primary key default 1,
+  settings jsonb not null default '{}'::jsonb,
+  search_history jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  constraint app_state_singleton check (id = 1)
 );
 
 alter table public.profiles enable row level security;
@@ -42,13 +45,13 @@ alter table public.app_state enable row level security;
 drop policy if exists "public read properties" on public.properties;
 create policy "public read properties" on public.properties for select using (true);
 
+insert into public.app_state(id,settings,search_history)
+values (1,'{}'::jsonb,'[]'::jsonb)
+on conflict (id) do nothing;
+
 insert into storage.buckets (id,name,public)
 values ('property-images','property-images',true)
 on conflict (id) do update set public=true;
 
--- لا تضع أي Service Role Key داخل الملفات.
--- أضفها في Render Environment Variables:
--- SUPABASE_URL
--- SUPABASE_SERVICE_ROLE_KEY
--- OWNER_EMAIL
--- SUPABASE_BUCKET=property-images
+-- لا تضع Service Role Key داخل ملفات المتصفح.
+-- ضعها فقط في Render Environment Variables باسم SUPABASE_SERVICE_ROLE_KEY.

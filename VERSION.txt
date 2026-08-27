@@ -1,5 +1,3 @@
-FINAL 19.0.0 — 2026-08-27
-Flat ZIP root: YES
-Images: Supabase Storage URLs
-Settings: app_state
-Owner password: in Admin Settings
+WEST AMMAN PROPERTY MANAGER
+Release: 19.1.0 OWNER-ONLY
+Base: FINAL 19.0.0 with syntax correction and owner-only authentication.
