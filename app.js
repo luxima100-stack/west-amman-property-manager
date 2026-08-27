@@ -1,6 +1,58 @@
-const cfg=window.SUPABASE_CONFIG||{};
-const configured=cfg.url&&cfg.anonKey&&!cfg.url.includes("YOUR-PROJECT")&&!cfg.anonKey.includes("YOUR_SUPABASE");
-const sb=window.supabase&&configured?window.supabase.createClient(cfg.url,cfg.anonKey):null;
+// لا يعتمد التطبيق على مفاتيح Supabase في المتصفح؛ كل العمليات تمر عبر server.js.
+const apiFetch=async (url,opt={})=>{
+  const token=localStorage.getItem("wam_auth_token")||"";
+  const headers={...(opt.headers||{})};
+  if(token) headers.Authorization=`Bearer ${token}`;
+  if(opt.body && !(opt.body instanceof FormData) && !headers["Content-Type"]) headers["Content-Type"]="application/json";
+  const r=await fetch(url,{...opt,headers});
+  const text=await r.text(); let data={}; try{data=text?JSON.parse(text):{}}catch{data={error:text}};
+  if(!r.ok) return {error:new Error(data.message||data.error||"حدث خطأ في الخادم"),data:null};
+  return {error:null,data};
+};
+const uploadedUrls=new Map();
+class QueryBuilder{
+  constructor(table){this.table=table;this.method="GET";this.body=null;this.filters=[];this.orderBy="";this.single=false;this.prefer=""}
+  select(){this.method="GET";return this}
+  eq(k,v){this.filters.push([k,v]);return this}
+  order(k,opt={}){this.orderBy=`${encodeURIComponent(k)}.${opt.ascending===false?'desc':'asc'}`;return this}
+  maybeSingle(){this.single=true;return this}
+  insert(body){this.method="POST";this.body=body;return this}
+  upsert(body){this.method="POST";this.body=body;this.prefer="resolution=merge-duplicates";return this}
+  update(body){this.method="PATCH";this.body=body;return this}
+  delete(){this.method="DELETE";return this}
+  async then(resolve,reject){try{
+    let url=`/api/data/${encodeURIComponent(this.table)}`;
+    const q=[]; for(const [k,v] of this.filters) q.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+    if(this.orderBy) q.push(`order=${this.orderBy}`);
+    if(q.length) url+=`?${q.join('&')}`;
+    const headers={}; if(this.prefer) headers.Prefer=this.prefer;
+    const r=await apiFetch(url,{method:this.method,headers,body:this.body?JSON.stringify(this.body):undefined});
+    let data=r.data; if(this.single && Array.isArray(data)) data=data[0]||null;
+    return resolve({data,error:r.error});
+  }catch(e){return reject(e)}}
+}
+const sb={
+  from:(table)=>new QueryBuilder(table),
+  auth:{
+    getSession:async()=>({data:{session:JSON.parse(localStorage.getItem("wam_auth_session")||"null")},error:null}),
+    signInWithPassword:async({email,password})=>{
+      const r=await apiFetch('/api/login',{method:'POST',body:JSON.stringify({email,password})});
+      if(r.error)return {data:null,error:r.error};
+      const session={access_token:r.data.token,user:r.data.user};
+      localStorage.setItem('wam_auth_token',r.data.token||'');
+      localStorage.setItem('wam_auth_user',JSON.stringify(r.data.user||{}));
+      localStorage.setItem('wam_auth_session',JSON.stringify(session));
+      return {data:{session,user:r.data.user},error:null};
+    },
+    signOut:async()=>{localStorage.removeItem('wam_auth_token');localStorage.removeItem('wam_auth_user');localStorage.removeItem('wam_auth_session');return {error:null}},
+    updateUser:async({password})=>{const r=await apiFetch('/api/owner/change-password',{method:'POST',body:JSON.stringify({password})});return {data:null,error:r.error}}
+  },
+  storage:{from:(bucket)=>({
+    upload:async(path,file)=>{const fd=new FormData();fd.append('images',file,file.name||'image');fd.append('path',path);fd.append('bucket',bucket);const r=await apiFetch('/api/upload',{method:'POST',body:fd});if(r.error)return {data:null,error:r.error};const url=r.data?.urls?.[0]||'';uploadedUrls.set(`${bucket}/${path}`,url);return {data:{path},error:null}},
+    getPublicUrl:(path)=>({data:{publicUrl:uploadedUrls.get(`${bucket}/${path}`)||''}})
+  })}
+};
+const configured=true;
 let user=null, profile=null, properties=[], areas=[], tenants=[], contracts=[], settings={alertDays:7,whatsapp:""};
 let searchHistory=JSON.parse(localStorage.getItem("wa_search_history")||"[]");
 const $=id=>document.getElementById(id);
@@ -13,9 +65,8 @@ function near(p){return p.available_date&&daysTo(p.available_date)>=0&&daysTo(p.
 function canEdit(){return profile?.role==="owner"||profile?.role==="admin"}
 
 async function init(){
-  $("configNotice").textContent=configured?"":"أدخل بيانات Supabase في config.js قبل النشر. سيتم تجنب الشاشة السوداء لكن الحفظ السحابي لن يعمل بدونها.";
+  $("configNotice").textContent="";
   bind();
-  if(!sb){showLogin();return}
   const {data:{session}}=await sb.auth.getSession();
   if(session) await enter(session.user); else showLogin();
 }
@@ -25,7 +76,7 @@ async function enter(u){
   await loadAll(); showPage("home");
 }
 async function loadAll(){
-  if(!sb)return;
+  
   const p=await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
   profile=p.data||{id:user.id,full_name:user.email,role:"admin",permissions:{}};
   const [pr,a,t,c]=await Promise.all([
@@ -43,7 +94,7 @@ function renderAll(){
   ac.classList.toggle("hidden",!n); if(n)ac.innerHTML=`🔴 ${n} شقة ستصبح متاحة قريباً — <button class="btn small gold" data-page="alerts">عرض التنبيهات</button>`;
 }
 function bind(){
-  $("loginForm").onsubmit=async e=>{e.preventDefault();if(!sb)return toast("أدخل إعدادات Supabase أولاً");const {data,error}=await sb.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});if(error)return toast(error.message);await enter(data.user)};
+  $("loginForm").onsubmit=async e=>{e.preventDefault();const {data,error}=await sb.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});if(error)return toast(error.message);await enter(data.user)};
   $("logoutBtn").onclick=async()=>{if(sb)await sb.auth.signOut();showLogin()};
   $("menuBtn").onclick=()=>$("sidebar").classList.toggle("open");
   $("themeBtn").onclick=()=>document.body.classList.toggle("light");
@@ -103,9 +154,9 @@ async function renderAdmins(){
  el.innerHTML=`<table class="data-table"><thead><tr><th>الاسم</th><th>الدور</th><th>الصلاحيات</th></tr></thead><tbody>${list.map(x=>`<tr><td>${esc(x.full_name)}</td><td>${x.role==="owner"?"المالك":"مدير"}</td><td>${x.role==="owner"?"كاملة":"محددة حسب الصلاحيات"}</td></tr>`).join("")}</tbody></table>`;
 }
 async function renderMessages(){if(!sb){$("messages").innerHTML="";return}const {data}=await sb.from("messages").select("*").order("created_at");$("messages").innerHTML=(data||[]).map(m=>`<div class="message ${m.user_id===user?.id?"mine":""}"><b>${esc(m.sender_name)}</b><div>${esc(m.body)}</div></div>`).join("")}
-async function sendMessage(e){e.preventDefault();if(!sb)return;const body=$("chatText").value.trim();if(!body)return;await sb.from("messages").insert({user_id:user.id,sender_name:profile.full_name||user.email,body});$("chatText").value="";renderMessages()}
+async function sendMessage(e){e.preventDefault();const body=$("chatText").value.trim();if(!body)return;await sb.from("messages").insert({user_id:user.id,sender_name:profile.full_name||user.email,body});$("chatText").value="";renderMessages()}
 function renderProfile(){$("profileInfo").innerHTML=`<p><b>الاسم:</b> ${esc(profile?.full_name||"")}</p><p><b>البريد:</b> ${esc(user?.email||"")}</p><p><b>الصلاحية:</b> ${profile?.role==="owner"?"المالك":"مدير"}</p>`}
-async function addArea(e){e.preventDefault();const name=$("areaName").value.trim();if(!name)return;if(!sb)return toast("Supabase غير مضبوط");const {error}=await sb.from("areas").insert({name});if(error)return toast(error.message);$("areaName").value="";await loadAll();toast("تمت إضافة المنطقة")}
+async function addArea(e){e.preventDefault();const name=$("areaName").value.trim();if(!name)return;const {error}=await sb.from("areas").insert({name});if(error)return toast(error.message);$("areaName").value="";await loadAll();toast("تمت إضافة المنطقة")}
 async function saveSettings(){settings.alertDays=Number($("defaultAlertDays").value||7);settings.whatsapp=$("whatsappNumber").value.trim();localStorage.setItem("wa_settings",JSON.stringify(settings));toast("تم حفظ الإعدادات")}
 function renderAreas(){$("areasList").innerHTML=areas.map(a=>`<div class="area-chip"><span>${esc(a.name)}</span><button class="btn small danger" data-del-area="${a.id}">حذف</button></div>`).join("");$("areasList").querySelectorAll("[data-del-area]").forEach(b=>b.onclick=async()=>{if(confirm("حذف المنطقة؟")){await sb.from("areas").delete().eq("id",b.dataset.delArea);await loadAll()}})}
 function openModal(html){$("modalBody").innerHTML=html;$("modal").classList.remove("hidden")}
@@ -132,7 +183,7 @@ function bindPropertyForm(id,oldImgs){
  const input=$("propertyImages"),thumbs=$("thumbs"),files=[];
  function draw(){thumbs.innerHTML=oldImgs.map((u,i)=>`<span class="thumb-wrap"><img class="thumb ${i===0?"primary":""}" src="${esc(u)}"><button type="button" data-remove="${i}">×</button></span>`).join("")+files.map((f,i)=>`<span class="thumb-wrap"><img class="thumb" src="${URL.createObjectURL(f)}"><button type="button" data-newremove="${i}">×</button></span>`).join("");thumbs.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>{oldImgs.splice(+b.dataset.remove,1);draw()});thumbs.querySelectorAll("[data-newremove]").forEach(b=>b.onclick=()=>{files.splice(+b.dataset.newremove,1);draw()})}
  input.onchange=e=>{files.push(...e.target.files);draw();input.value=""};draw();
- $("propertyForm").onsubmit=async e=>{e.preventDefault();if(!sb)return toast("Supabase غير مضبوط");const fd=new FormData(e.target),data=Object.fromEntries(fd.entries());data.price=Number(data.price||0);data.size=Number(data.size||0);data.rooms=Number(data.rooms||0);data.bathrooms=Number(data.bathrooms||0);data.alert_days=Number(data.alert_days||settings.alertDays||7);
+ $("propertyForm").onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target),data=Object.fromEntries(fd.entries());data.price=Number(data.price||0);data.size=Number(data.size||0);data.rooms=Number(data.rooms||0);data.bathrooms=Number(data.bathrooms||0);data.alert_days=Number(data.alert_days||settings.alertDays||7);
  const uploaded=[];for(const f of files){const path=`properties/${crypto.randomUUID()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const up=await sb.storage.from("property-media").upload(path,f,{upsert:false});if(up.error)return toast("فشل رفع صورة: "+up.error.message);const pub=sb.storage.from("property-media").getPublicUrl(path);uploaded.push(pub.data.publicUrl)}
  data.images=[...oldImgs,...uploaded];data.primary_image=data.images[0]||"";
  let res=id?await sb.from("properties").update(data).eq("id",id):await sb.from("properties").insert(data);if(res.error)return toast(res.error.message);closeModal();await loadAll();toast("تم حفظ الشقة والصور بنجاح")}
@@ -140,7 +191,7 @@ function bindPropertyForm(id,oldImgs){
 function openTenant(){openModal(`<h2>إضافة مستأجر</h2><form id="tenantForm" class="form-grid"><label>الاسم<input name="name" required></label><label>الهاتف<input name="phone"></label><label>رقم الهوية<input name="id_number"></label><label>الشقة<select name="property_id"><option value="">بدون</option>${properties.map(p=>`<option value="${p.id}">#${esc(p.code)}</option>`).join("")}</select></label><label class="full">ملاحظات<textarea name="notes"></textarea></label><button class="btn gold full">حفظ</button></form>`);$("tenantForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(sb){const {error}=await sb.from("tenants").insert(d);if(error)return toast(error.message);await loadAll()}closeModal()}}
 function openContract(){openModal(`<h2>إضافة عقد</h2><form id="contractForm" class="form-grid"><label>الشقة<select name="property_id">${properties.map(p=>`<option value="${p.id}">#${esc(p.code)}</option>`).join("")}</select></label><label>المستأجر<select name="tenant_id">${tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></label><label>البداية<input name="start_date" type="date"></label><label>النهاية<input name="end_date" type="date"></label><label>الإيجار<input name="rent" type="number"></label><label>التأمين<input name="deposit" type="number"></label><label class="full">ملاحظات<textarea name="notes"></textarea></label><button class="btn gold full">حفظ العقد</button></form>`);$("contractForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));d.rent=Number(d.rent||0);d.deposit=Number(d.deposit||0);if(sb){const {error}=await sb.from("contracts").insert(d);if(error)return toast(error.message);await loadAll()}closeModal()}}
 function openAdmin(){openModal(`<h2>إضافة مدير</h2><p class="muted">إنشاء مستخدم Auth جديد يحتاج دعوة/إنشاء من Supabase Authentication. من هنا يمكن تسجيل بيانات الصلاحيات بعد إنشاء الحساب.</p><form id="adminForm"><label>UUID المستخدم<input name="id" required></label><label>اسم المدير<input name="full_name" required></label><label>الدور<select name="role"><option value="admin">مدير</option><option value="owner">مالك</option></select></label><label>الصلاحيات JSON<textarea name="permissions" rows="5">{}</textarea></label><button class="btn gold wide">حفظ الصلاحيات</button></form>`);$("adminForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));try{d.permissions=JSON.parse(d.permissions)}catch{return toast("صيغة الصلاحيات غير صحيحة")}if(sb){const {error}=await sb.from("profiles").upsert(d);if(error)return toast(error.message);await renderAdmins();closeModal()}}}
-async function changePassword(){if(!sb)return toast("Supabase غير مضبوط");const html=`<h2>تغيير كلمة المرور</h2><form id="pwForm"><label>كلمة المرور الجديدة<input name="password" type="password" minlength="6" required></label><label>تأكيد كلمة المرور<input name="confirm" type="password" minlength="6" required></label><button class="btn gold wide">تغيير</button></form>`;openModal(html);$("pwForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.password!==d.confirm)return toast("كلمتا المرور غير متطابقتين");const {error}=await sb.auth.updateUser({password:d.password});if(error)return toast(error.message);closeModal();toast("تم تغيير كلمة المرور")}
+async function changePassword(){const html=`<h2>تغيير كلمة المرور</h2><form id="pwForm"><label>كلمة المرور الجديدة<input name="password" type="password" minlength="6" required></label><label>تأكيد كلمة المرور<input name="confirm" type="password" minlength="6" required></label><button class="btn gold wide">تغيير</button></form>`;openModal(html);$("pwForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.password!==d.confirm)return toast("كلمتا المرور غير متطابقتين");const {error}=await sb.auth.updateUser({password:d.password});if(error)return toast(error.message);closeModal();toast("تم تغيير كلمة المرور")}
 }
 async function shareWhatsApp(id){
  const p=properties.find(x=>x.id===id); if(!p)return;
