@@ -1,2 +1,0 @@
-FINAL v20.1.0 — 2026-08-27
-Flat ZIP root; Supabase database + Storage; owner/admin login; owner password control in Admin Management.
