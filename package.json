@@ -1,0 +1,15 @@
+{
+  "name": "west-amman-property-manager",
+  "version": "18.1.0",
+  "private": true,
+  "description": "نظام إدارة عقارات غرب عمان — نسخة هاتفية مسطحة الجذر",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
