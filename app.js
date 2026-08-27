@@ -38,7 +38,55 @@ function propertyForm(p=null){let imgs=[...(p?.images||[])];modal(`<div class="m
 function tenantModal(t=null){modal(`<div class="modal-head"><h2>${t?'تعديل المستأجر':'إضافة مستأجر'}</h2><button class="icon-btn closeModal">✕</button></div><form id="tenantForm" class="form-grid"><div class="field"><label>الاسم</label><input id="tn" required value="${esc(t?.name||'')}"></div><div class="field"><label>الهاتف</label><input id="tp" value="${esc(t?.phone||'')}"></div><div class="field"><label>كود الشقة</label><input id="tcode" value="${esc(t?.property_code||'')}"></div><div class="field"><label>بداية العقد</label><input id="ts" type="date" value="${esc(t?.contract_start||'')}"></div><div class="field"><label>نهاية العقد</label><input id="te" type="date" value="${esc(t?.contract_end||'')}"></div><div class="field"><label>أيام التنبيه</label><input id="ta" type="number" value="${t?.alert_days??state.settings.notificationDays??7}"></div><div class="full"><button class="btn">حفظ</button></div></form>`);$('#tenantForm').onsubmit=async e=>{e.preventDefault();try{const body={name:$('#tn').value.trim(),phone:$('#tp').value.trim(),property_code:$('#tcode').value.trim(),contract_start:$('#ts').value||null,contract_end:$('#te').value||null,alert_days:Number($('#ta').value||7)};const out=await api(t?'/api/tenants/'+t.id:'/api/tenants',{method:t?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(out.error)throw Error(out.error);$('#modal-root')?.remove();state.tenants=await api('/api/tenants');render();toast('تم حفظ المستأجر')}catch(e){toast(e.message,false)}}}
 function adminModal(){const perms=['dashboard','properties','tenants','reports','settings','messages'];modal(`<div class="modal-head"><h2>إضافة مدير</h2><button class="icon-btn closeModal">✕</button></div><form id="adminForm" class="form-grid"><div class="field"><label>الاسم</label><input id="an" required></div><div class="field"><label>البريد الإلكتروني</label><input id="ae" type="email" required></div><div class="field"><label>كلمة المرور</label><input id="ap" type="password" minlength="6" required></div><div class="field full"><label>الصلاحيات</label><div class="permissions">${perms.map(p=>`<label class="check"><input type="checkbox" data-perm="${p}" checked> ${p}</label>`).join('')}</div></div><div class="full"><button class="btn">إنشاء المدير</button></div></form>`);$('#adminForm').onsubmit=async e=>{e.preventDefault();try{const permissions=$$('[data-perm]:checked').map(x=>x.dataset.perm);const out=await api('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#an').value.trim(),email:$('#ae').value.trim(),password:$('#ap').value,permissions})});if(out.error)throw Error(out.error);$('#modal-root')?.remove();state.users=await api('/api/users');render();toast('تم إنشاء المدير بنجاح')}catch(e){toast(e.message,false)}}}
 function shareProperty(p){if(!p)return;state.shareSelected=(p.images||[]).slice(0,10).map((_,i)=>i);modal(`<div class="modal-head"><h2>مشاركة الشقة عبر واتساب</h2><button class="icon-btn closeModal">✕</button></div><div class="share-summary"><div class="share-brand">🏠 عقارات غرب عمان</div><div class="share-title">${esc(p.name)}</div><div class="share-code">🔑 ${esc(p.code)} • 📍 ${esc(p.area)}</div><div class="share-pills"><span>🛏 ${p.rooms||0} غرف</span><span>🛁 ${p.baths||0} حمامات</span><span>🌿 ${p.balcony?'بلكونة':'بدون'}</span><span>💰 ${Number(p.price||0).toLocaleString('ar-JO')} د.أ</span></div></div><div class="share-select-head"><b>اختيار الصور</b><span id="shareCount">تم تحديد ${state.shareSelected.length} من 10</span></div><div class="share-images">${(p.images||[]).slice(0,10).map((x,i)=>`<label class="share-image selected"><input type="checkbox" checked data-share-check="${i}"><img src="${esc(x)}"><span>${i+1}</span></label>`).join('')||'<div class="empty">لا توجد صور محفوظة لهذه الشقة.</div>'}</div><div class="share-text-box"><label>النص الذي سيرسل مع الصور</label><textarea id="shareText" rows="10">${esc(detailsText(p))}</textarea></div><div class="btn-row" style="margin-top:14px"><button class="btn" id="sendWhatsapp">📲 إرسال التفاصيل والصور</button><button class="ghost-btn" id="copyShareText">نسخ النص</button></div>`,true);$$('[data-share-check]').forEach(c=>c.onchange=()=>{const i=Number(c.dataset.shareCheck);if(c.checked){if(state.shareSelected.length>=10){c.checked=false;toast('الحد الأقصى 10 صور',false);return}state.shareSelected.push(i)}else state.shareSelected=state.shareSelected.filter(x=>x!==i);c.closest('.share-image').classList.toggle('selected',c.checked);$('#shareCount').textContent=`تم تحديد ${state.shareSelected.length} من 10`});$('#copyShareText').onclick=async()=>{await navigator.clipboard?.writeText($('#shareText').value);toast('تم نسخ النص')};$('#sendWhatsapp').onclick=()=>sendWhatsApp(p)}
-async function sendWhatsApp(p){const text=$('#shareText')?.value||detailsText(p),urls=state.shareSelected.slice(0,10).map(i=>p.images?.[i]).filter(Boolean);try{if(navigator.share){const files=[];for(let i=0;i<urls.length;i++){const b=await fetch(urls[i]).then(r=>r.blob());files.push(new File([b],`شقة-${p.code}-${i+1}.${(b.type.split('/')[1]||'jpg').replace('jpeg','jpg')}`,{type:b.type||'image/jpeg'}))}const data=files.length?{title:`شقة ${p.code}`,text,files}:{title:`شقة ${p.code}`,text};if(!files.length||!navigator.canShare||navigator.canShare({files}))await navigator.share(data);else await navigator.share({title:`شقة ${p.code}`,text});$('#modal-root')?.remove();toast('تم فتح مشاركة الهاتف مع الصور والتفاصيل')}else{window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');toast('المتصفح لا يدعم مشاركة الملفات؛ تم فتح واتساب بالنص فقط',false)}}catch(e){if(e.name==='AbortError')return;window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');toast('تم فتح واتساب بالنص. إذا لم تظهر الصور فالمتصفح لا يسمح بمشاركة الملفات',false)}}
+async function shareImageFile(url,code,index){
+  const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error('تعذر تحميل الصورة');
+  const blob=await r.blob();
+  const type=blob.type||'image/jpeg';
+  if(!/^image\//.test(type)) throw new Error('الرابط ليس صورة');
+  // ضغط خفيف لتقليل حجم المشاركة مع الحفاظ على الجودة.
+  try{
+    const bmp=await createImageBitmap(blob); const max=1600;
+    const scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+    const canvas=document.createElement('canvas'); canvas.width=Math.max(1,Math.round(bmp.width*scale)); canvas.height=Math.max(1,Math.round(bmp.height*scale));
+    const ctx=canvas.getContext('2d'); ctx.drawImage(bmp,0,0,canvas.width,canvas.height);
+    const out=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));
+    if(out) return new File([out],`شقة-${code}-${index+1}.jpg`,{type:'image/jpeg'});
+  }catch{}
+  const ext=(type.split('/')[1]||'jpg').replace('jpeg','jpg');
+  return new File([blob],`شقة-${code}-${index+1}.${ext}`,{type});
+}
+async function sendWhatsApp(p){
+  if(!p)return;
+  const text=$('#shareText')?.value||detailsText(p);
+  const idx=state.shareSelected.slice(0,10);
+  const urls=idx.map(i=>p.images?.[i]).filter(Boolean);
+  try{
+    // ينسخ التفاصيل مرة واحدة قبل فتح شاشة المشاركة.
+    try{await navigator.clipboard.writeText(text);toast('تم نسخ تفاصيل الشقة وتجهيز الصور');}catch{}
+    const files=[];
+    for(let i=0;i<urls.length;i++) files.push(await shareImageFile(urls[i],p.code,i));
+    if(navigator.share && (!files.length || (navigator.canShare && navigator.canShare({files})))){
+      await navigator.share({title:`شقة ${p.code}`,text,files});
+      $('#modal-root')?.remove();
+      toast('تم تجهيز التفاصيل والصور للمشاركة');
+      return;
+    }
+    if(navigator.share){
+      await navigator.share({title:`شقة ${p.code}`,text});
+      $('#modal-root')?.remove();
+      toast('تمت مشاركة التفاصيل؛ هذا المتصفح لا يسمح بمشاركة الصور معًا',false);
+      return;
+    }
+    window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
+    toast('تم نسخ التفاصيل وفتح واتساب. هذا المتصفح لا يدعم إرفاق الصور تلقائيًا.',false);
+  }catch(e){
+    if(e?.name==='AbortError')return;
+    try{await navigator.clipboard.writeText(text)}catch{}
+    window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank','noopener');
+    toast('تم نسخ التفاصيل وفتح واتساب. تعذر إرفاق الصور تلقائيًا من هذا المتصفح.',false);
+  }
+}
+
 function showSoonModal(){const s=soonProperties();modal(`<div class="modal-head"><h2>🔴 شقق قريبة من التوفر</h2><button class="icon-btn closeModal">✕</button></div><div class="soon-list">${s.map(p=>`<div class="soon-card"><img src="${esc(p.images?.[0]||seedImages[0])}"><div><b>${esc(p.name)}</b><div class="muted">🔑 ${esc(p.code)} • 📍 ${esc(p.area)}</div><div class="danger-text">📅 ${fmtDate(p.availability_date)} — متبقي ${daysUntil(p.availability_date)} يوم</div></div></div>`).join('')||'<div class="empty">لا توجد شقق ضمن فترة التنبيه.</div>'}</div>`,true)}
 function saveSearch(){const f=state.filter;if(!f.q&&f.area==='الكل'&&f.status==='الكل'&&f.rooms==='الكل'&&f.baths==='الكل'&&f.balcony==='الكل'&&f.minPrice===''&&f.maxPrice==='')return;const label=[f.q&&`بحث: ${f.q}`,f.area!=='الكل'&&`المنطقة: ${f.area}`,f.status!=='الكل'&&`الحالة: ${f.status}`,f.rooms!=='الكل'&&`غرف: ${f.rooms}`,f.baths!=='الكل'&&`حمامات: ${f.baths}`,f.balcony!=='الكل'&&`بلكونة: ${f.balcony==='1'?'نعم':'لا'}`,f.minPrice!==''&&`من: ${f.minPrice}`,f.maxPrice!==''&&`إلى: ${f.maxPrice}`].filter(Boolean).join(' • ');state.searchHistory=[{...f,label,date:new Date().toLocaleString('ar-JO',{dateStyle:'short',timeStyle:'short'})},...state.searchHistory.filter(h=>h.label!==label)].slice(0,12)}
 function restoreSearch(h){state.filter={q:h.q||'',area:h.area||'الكل',status:h.status||'الكل',rooms:h.rooms||'الكل',baths:h.baths||'الكل',balcony:h.balcony||'الكل',minPrice:h.minPrice||'',maxPrice:h.maxPrice||'',sort:'newest'};state.page='properties';render()}
