@@ -1,5 +1,5 @@
-WEST AMMAN PROPERTY MANAGER
-FINAL 18.4.0
-
-Base: النسخة القديمة 18.2
-إصلاحات نهائية: رفع الصور عبر multipart، حفظ روابط الصور مع الشقة، إعدادات كاملة، إدارة المناطق، تغيير كلمة سر المالك من صفحة المديرين، الحفاظ على التصميم القديم.
+FINAL 19.0.0 — 2026-08-27
+Flat ZIP root: YES
+Images: Supabase Storage URLs
+Settings: app_state
+Owner password: in Admin Settings

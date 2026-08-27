@@ -1,1 +1,11 @@
-{"name":"عقارات غرب عمان","short_name":"عقارات عمان","start_url":".","display":"standalone","background_color":"#090f18","theme_color":"#0a101b","lang":"ar","dir":"rtl","icons":[]}
+{
+  "name": "عقارات غرب عمان",
+  "short_name": "عقارات غرب عمان",
+  "start_url": "/",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#07101d",
+  "background_color": "#07101d",
+  "icons": []
+}
