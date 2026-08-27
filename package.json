@@ -1,0 +1,16 @@
+{
+  "name": "west-amman-property-manager",
+  "version": "FINAL-20.0.0",
+  "private": true,
+  "description": "عقارات غرب عمان - نسخة نهائية Flat + Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
