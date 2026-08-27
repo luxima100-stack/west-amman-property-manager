@@ -89,7 +89,7 @@ function renderPropertyCards(a,target="propertyGrid"){
 }
 function card(p){
  const imgs=Array.isArray(p.images)?p.images:[];const img=p.primary_image||imgs[0]||"";
- return `<article class="property-card"><div class="property-image">${img?`<img src="${esc(img)}" alt="">`:""}<span class="status ${statusClass(near(p)?"قريبة من التوفر":p.status)}">${esc(near(p)?"قريبة من التوفر":p.status)}</span><span class="image-count">📷 ${imgs.length}</span></div><div class="property-body"><h3>${esc(p.title)}</h3><div class="code">#${esc(p.code)} • ${esc(p.owner_name||"")}</div><div class="facts"><div class="fact">🛏 ${fmt(p.rooms)}</div><div class="fact">🛁 ${fmt(p.bathrooms)}</div><div class="fact">📐 ${fmt(p.size)}م²</div><div class="fact">💰 ${fmt(p.price)}</div></div><div class="actions"><button class="btn ghost" data-open="${p.id}">التفاصيل</button><button class="btn gold" data-wa="${p.id}">واتساب</button></div></div></article>`
+ return `<article class="property-card"><div class="property-image">${img?`<img src="${esc(img)}" alt="">`:""}<span class="status ${statusClass(near(p)?"قريبة من التوفر":p.status)}">${esc(near(p)?"قريبة من التوفر":p.status)}</span><span class="image-count">📷 ${imgs.length}</span></div><div class="property-body"><h3>${esc(p.title)}</h3><div class="code">#${esc(p.code)} • ${esc(p.owner_name||"")}</div><div class="facts"><div class="fact">🛏 ${fmt(p.rooms)}</div><div class="fact">🛁 ${fmt(p.bathrooms)}</div><div class="fact">📐 ${fmt(p.size)}م²</div><div class="fact">💰 ${fmt(p.price)}</div></div><div class="actions"><button class="btn ghost" data-open="${p.id}">التفاصيل</button><button class="btn whatsapp" data-wa="${p.id}">🟢 واتساب</button></div></div></article>`
 }
 function renderProperties(){runSearch()}
 function renderAdminProperties(){renderPropertyCards(properties,"propertyAdminGrid")}
@@ -143,10 +143,58 @@ function openAdmin(){openModal(`<h2>إضافة مدير</h2><p class="muted">إ�
 async function changePassword(){if(!sb)return toast("Supabase غير مضبوط");const html=`<h2>تغيير كلمة المرور</h2><form id="pwForm"><label>كلمة المرور الجديدة<input name="password" type="password" minlength="6" required></label><label>تأكيد كلمة المرور<input name="confirm" type="password" minlength="6" required></label><button class="btn gold wide">تغيير</button></form>`;openModal(html);$("pwForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));if(d.password!==d.confirm)return toast("كلمتا المرور غير متطابقتين");const {error}=await sb.auth.updateUser({password:d.password});if(error)return toast(error.message);closeModal();toast("تم تغيير كلمة المرور")}
 }
 async function shareWhatsApp(id){
- const p=properties.find(x=>x.id===id);if(!p)return;const text=`🏠 عقارات غرب عمّان\n${p.title} — #${p.code}\n📍 ${p.area||""} ${p.address||""}\n💰 السعر: ${fmt(p.price)}\n🛏 الغرف: ${p.rooms} | 🛁 الحمامات: ${p.bathrooms}\n📐 المساحة: ${p.size}م²\n🛋 صالون: ${p.salon} | 🌤 بلكونة: ${p.balcony}\n📅 التوفر: ${p.available_date||p.status}\n${p.description||""}`;
- const imgs=(Array.isArray(p.images)?p.images:[]).slice(0,10);
- if(navigator.share){try{const blobs=[];for(let i=0;i<imgs.length;i++){const r=await fetch(imgs[i]);const b=await r.blob();blobs.push(new File([b],`property-${p.code}-${i+1}.${b.type.split("/")[1]||"jpg"}`,{type:b.type}))}if(blobs.length&&navigator.canShare&&navigator.canShare({files:blobs})){await navigator.share({title:p.title,text,files:blobs});return}await navigator.share({title:p.title,text});return}catch(e){}}
- const phone=(p.whatsapp||settings.whatsapp||"").replace(/\D/g,"");location.href=phone?`https://wa.me/${phone}?text=${encodeURIComponent(text)}`:`https://wa.me/?text=${encodeURIComponent(text)}`
+ const p=properties.find(x=>x.id===id); if(!p)return;
+
+ const text=`🏠 *عقارات غرب عمّان*
+
+🏢 *${p.title||"شقة"}* — #${p.code||"-"}
+📍 المنطقة: ${p.area||"-"}
+📌 العنوان: ${p.address||"-"}
+💰 السعر: ${fmt(p.price)} دينار
+🛏 الغرف: ${p.rooms||0}
+🛁 الحمامات: ${p.bathrooms||0}
+🛋 الصالون: ${p.salon||"غير محدد"}
+🌤 البلكونة: ${p.balcony||"غير محدد"}
+📐 المساحة: ${fmt(p.size)} م²
+🏷 الحالة: ${p.status||"-"}
+📅 التوفر: ${p.available_date||"متاح حسب الحالة"}
+
+📝 ${p.description||"للمزيد من التفاصيل تواصل معنا."}`;
+
+ const imgs=(Array.isArray(p.images)?p.images:[]).filter(Boolean).slice(0,10);
+
+ // مشاركة أصلية من الهاتف: عند اختيار WhatsApp تُرسل الصور كصور فعلية مع النص.
+ if(typeof navigator!=="undefined" && typeof navigator.share==="function"){
+   try{
+     const files=[];
+     for(let i=0;i<imgs.length;i++){
+       try{
+         const r=await fetch(imgs[i],{mode:"cors",cache:"no-store"});
+         if(!r.ok)continue;
+         const blob=await r.blob();
+         if(!blob.type.startsWith("image/"))continue;
+         const ext=(blob.type.split("/")[1]||"jpeg").replace("jpeg","jpg");
+         files.push(new File([blob],`عقار-${p.code||"شقة"}-${i+1}.${ext}`,{type:blob.type}));
+       }catch(_){}
+     }
+     const data=files.length
+       ? {title:p.title||"عقارات غرب عمّان",text,files}
+       : {title:p.title||"عقارات غرب عمّان",text};
+
+     if(!files.length || !navigator.canShare || navigator.canShare({files})){
+       await navigator.share(data);
+       return;
+     }
+   }catch(e){
+     if(e && e.name==="AbortError")return;
+   }
+ }
+
+ // احتياط للمتصفحات التي لا تدعم مشاركة الملفات: النص فقط.
+ const phone=(p.whatsapp||settings.whatsapp||"").replace(/\D/g,"");
+ location.href=phone
+   ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+   : `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 function exportData(){const data={exportedAt:new Date().toISOString(),properties,areas,tenants,contracts,settings};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="west-amman-backup.json";a.click()}
 async function importData(e){const f=e.target.files[0];if(!f||!sb)return;try{const d=JSON.parse(await f.text());if(d.areas?.length)for(const x of d.areas)await sb.from("areas").upsert({name:x.name});if(d.properties?.length)for(const x of d.properties){delete x.id;await sb.from("properties").upsert(x,{onConflict:"code"})}if(d.tenants?.length)for(const x of d.tenants){delete x.id;await sb.from("tenants").insert(x)}if(d.contracts?.length)for(const x of d.contracts){delete x.id;await sb.from("contracts").insert(x)}await loadAll();toast("تمت الاستعادة")}catch(err){toast("ملف النسخة غير صالح")}}
