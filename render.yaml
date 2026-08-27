@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: west-amman-property-manager
-    runtime: node
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /api/health
