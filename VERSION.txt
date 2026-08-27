@@ -1,4 +1,3 @@
-FINAL v15.1.0 — 2026-08-25
-Responsive for phone and computer.
-Added apartment floor and area (m²) to property cards, details, and WhatsApp sharing.
-GitHub-ready repository root.
+WEST AMMAN PROPERTY MANAGER FINAL 20.0.0
+ZIP root is flat: YES
+Supabase Auth + Database + Storage integrated.
