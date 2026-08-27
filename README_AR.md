@@ -1,38 +1,31 @@
-# عقارات غرب عمان — FINAL SUPABASE
+# عقارات غرب عمان — FINAL SUPABASE + WhatsApp Images
 
-هذه النسخة Flat: جميع الملفات في جذر المشروع بدون مجلدات.
+هذه الحزمة Flat: كل الملفات في جذر ZIP بدون مجلدات.
 
 ## الملفات
-- index.html — الواجهة والتصميم المتجاوب.
-- app.js — كل وظائف الواجهة، البحث، السجل، الصور، واتساب، الصلاحيات.
-- server.js — API آمن يتعامل مع Supabase Service Role.
-- SUPABASE_SETUP_WEST_AMMAN.sql — الجداول وStorage.
-- package.json — التشغيل.
-- render.yaml — النشر على Render.
+- index.html — الواجهة والتصميم.
+- app.js — البحث، سجل البحث الأفقي، الشقق، التنبيهات، تسجيل الدخول، المديرون، واتساب.
+- server.js — API + Supabase Auth + Database + Storage.
+- SUPABASE_SETUP_WEST_AMMAN.sql — الجداول وBucket.
+- render.yaml — إعداد Render.
+- package.json — تشغيل Node/Express.
+- manifest.json — PWA.
+- VERSION.txt — رقم النسخة.
 
-## Supabase
-في Render أضف:
-SUPABASE_URL = رابط مشروع Supabase
-SUPABASE_SERVICE_ROLE_KEY = Service Role Key
-SUPABASE_BUCKET = property-images
+## Supabase / Render
+أضف في Render Environment Variables:
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_BUCKET=property-images
+ثم نفّذ SQL بالكامل في Supabase SQL Editor.
 
-نفّذ ملف SQL في Supabase SQL Editor.
-
-## تسجيل الدخول
-تسجيل الدخول بالبريد وكلمة المرور عبر Supabase Auth.
-المالك فقط يستطيع إنشاء مديرين.
-لا توجد كلمات مرور ثابتة داخل التطبيق.
+## الصور
+عند إضافة/تعديل الشقة يتم ضغط الصور على الهاتف، ثم يرفعها الخادم إلى Supabase Storage ويخزن روابط الصور فقط في قاعدة البيانات. الحد الأقصى 10 صور.
 
 ## واتساب
-زر واتساب للمالك يجهز نص التفاصيل مرة واحدة ويحاول مشاركة حتى 10 صور كملفات أصلية عبر Web Share API في الهاتف. إذا كان المتصفح لا يدعم مشاركة الملفات، يتم فتح WhatsApp بالنص المنسق فقط؛ هذا قيد من المتصفح وليس من قاعدة البيانات.
+زر واتساب يجمع التفاصيل المنسقة بإيموجي ويجهز أول 10 صور كصور JPEG حقيقية عبر Web Share API، ثم يفتح قائمة المشاركة في الهاتف لاختيار WhatsApp. لا يتم وضع روابط الصور داخل الرسالة عند نجاح مشاركة الملفات.
+إذا كان المتصفح/نظام الهاتف لا يدعم مشاركة الملفات المتعددة، لا يمكن لصفحة ويب إجبار WhatsApp على إرفاق الصور تلقائياً؛ في هذه الحالة يتم نسخ النص وفتح WhatsApp كحل بديل.
 
-## النشر من الهاتف
-ارفع محتويات ZIP إلى جذر مستودع GitHub، ثم Deploy latest commit في Render.
-لا ترفع ZIP نفسه إلى Render.
-
-## ملاحظة
-لا يمكن ضمان "100%" قبل تشغيل المشروع على حساب Supabase/Render الفعلي، لأن نجاح الدخول والتخزين يعتمد على قيم البيئة وتهيئة Auth/Storage في الحساب.
-
-
-## إصلاح الشاشة السوداء
-تمت إضافة معالجة فشل اتصال Supabase بحيث تظهر الواجهة بدل بقاء الصفحة فارغة، مع رسالة إعداد واضحة، وحماية من أخطاء localStorage وأخطاء JavaScript غير المعالجة.
+## مهم
+لا تضع Service Role Key داخل app.js أو index.html.
+لا ترفع ZIP نفسه إلى Render؛ ارفع محتوياته إلى جذر GitHub.

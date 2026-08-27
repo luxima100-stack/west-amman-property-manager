@@ -52,3 +52,6 @@ on conflict(id) do update set public=true;
 -- ضع SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY في Render Environment Variables.
 -- أنشئ حساب المالك في Supabase Authentication > Users.
 -- أول مستخدم يسجل الدخول إذا لم يوجد profile وكان جدول profiles فارغاً يصبح owner.
+
+-- Storage policies: the server uses Service Role, so browser does not need direct write access.
+-- The bucket is public for image display and native Web Share fetching.

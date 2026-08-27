@@ -22,9 +22,25 @@ app.post("/api/login",async(req,res)=>{try{const email=String(req.body?.email||"
 app.get("/api/public/properties",async(req,res)=>{try{res.json(await sb("/rest/v1/properties?select=*&order=created_at.desc"))}catch(e){res.status(500).json({error:e.message})}});
 app.get("/api/properties",auth,async(req,res)=>{try{res.json(await sb("/rest/v1/properties?select=*&order=created_at.desc"))}catch(e){res.status(500).json({error:e.message})}});
 
-function cleanProperty(x){return{code:String(x.code||"").trim(),name:String(x.name||"").trim(),area:String(x.area||"").trim(),status:String(x.status||"متاحة"),floor:x.floor===""||x.floor==null?null:Number(x.floor),area_size:x.area_size===""||x.area_size==null?null:Number(x.area_size),price:Number(x.price||0),rooms:Number(x.rooms||0),baths:Number(x.baths||0),balcony:!!x.balcony,availability_date:x.availability_date||null,alert_days:Number(x.alert_days||7),notes:String(x.notes||""),video_url:String(x.video_url||""),images:Array.isArray(x.images)?x.images.slice(0,10):[]}}
-app.post("/api/properties",auth,async(req,res)=>{try{const x=cleanProperty(req.body);if(!x.code||!x.name||!x.area)return res.status(400).json({error:"أكمل الكود والاسم والمنطقة."});const rows=await sb("/rest/v1/properties",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(x)});res.json(rows?.[0]||rows)}catch(e){res.status(e.status||500).json({error:e.message})}});
-app.put("/api/properties/:id",auth,async(req,res)=>{try{const rows=await sb(`/rest/v1/properties?id=eq.${encodeURIComponent(req.params.id)}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify(cleanProperty(req.body))});res.json(rows?.[0]||rows)}catch(e){res.status(e.status||500).json({error:e.message})}});
+function dataUrlToBuffer(s){const m=String(s||'').match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);if(!m) return null;return {type:m[1],buffer:Buffer.from(m[2],'base64')};}
+async function saveImages(images,userId){
+ const out=[];
+ for(let i=0;i<Math.min(10,Array.isArray(images)?images.length:0);i++){
+  const item=String(images[i]||'');
+  if(!item) continue;
+  if(!item.startsWith('data:')){out.push(item);continue;}
+  const parsed=dataUrlToBuffer(item); if(!parsed) continue;
+  const ext=parsed.type==='image/png'?'png':parsed.type==='image/webp'?'webp':'jpg';
+  const pathName=`properties/${encodeURIComponent(String(userId||'user'))}/${Date.now()}-${Math.random().toString(36).slice(2,9)}-${i}.${ext}`;
+  const r=await fetch(`${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(BUCKET)}/${pathName}`,{method:'POST',headers:{apikey:SERVICE_KEY,Authorization:`Bearer ${SERVICE_KEY}`,'Content-Type':parsed.type,'x-upsert':'true'},body:parsed.buffer});
+  const txt=await r.text(); if(!r.ok) throw new Error(txt||`فشل رفع الصورة (${r.status})`);
+  out.push(`${SUPABASE_URL}/storage/v1/object/public/${encodeURIComponent(BUCKET)}/${pathName}`);
+ }
+ return out.slice(0,10);
+}
+async function cleanProperty(x,userId){return{code:String(x.code||"").trim(),name:String(x.name||"").trim(),area:String(x.area||"").trim(),status:String(x.status||"متاحة"),floor:x.floor===""||x.floor==null?null:Number(x.floor),area_size:x.area_size===""||x.area_size==null?null:Number(x.area_size),price:Number(x.price||0),rooms:Number(x.rooms||0),baths:Number(x.baths||0),balcony:!!x.balcony,availability_date:x.availability_date||null,alert_days:Number(x.alert_days||7),notes:String(x.notes||""),video_url:String(x.video_url||""),images:await saveImages(x.images,userId)}}
+app.post("/api/properties",auth,async(req,res)=>{try{const x=await cleanProperty(req.body,req.user.id);if(!x.code||!x.name||!x.area)return res.status(400).json({error:"أكمل الكود والاسم والمنطقة."});const rows=await sb("/rest/v1/properties",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify(x)});res.json(rows?.[0]||rows)}catch(e){res.status(e.status||500).json({error:e.message})}});
+app.put("/api/properties/:id",auth,async(req,res)=>{try{const rows=await sb(`/rest/v1/properties?id=eq.${encodeURIComponent(req.params.id)}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify(await cleanProperty(req.body,req.user.id))});res.json(rows?.[0]||rows)}catch(e){res.status(e.status||500).json({error:e.message})}});
 app.delete("/api/properties/:id",owner,async(req,res)=>{try{await sb(`/rest/v1/properties?id=eq.${encodeURIComponent(req.params.id)}`,{method:"DELETE"});res.json({ok:true})}catch(e){res.status(e.status||500).json({error:e.message})}});
 
 app.get("/api/users",auth,async(req,res)=>{try{res.json(await sb("/rest/v1/profiles?select=id,name,email,role,permissions&order=created_at.asc"))}catch(e){res.status(500).json({error:e.message})}});
