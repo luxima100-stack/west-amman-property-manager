@@ -24,17 +24,136 @@ const seedProperties=[
  {id:'U210',code:'U210',name:'شقة في أم أذينة',area:'أم أذينة',type:'شقة',status:'مؤجرة',floor:2,areaSize:120,rooms:2,baths:2,balcony:1,price:500,tenant:'',availabilityDate:'2026-12-05',contractEnd:'2026-12-05',images:[seedImages[1]],notes:'تشطيب حديث.',phone:'0790000006'}
 ];
 const state={
- user:null,token:localStorage.getItem('wam_auth_token')||'',page:'dashboard',design:localStorage.getItem('wam_design')||'design1',properties:[],users:[],tenants:[],settings:{},searchHistory:[],shareSelected:[],filter:{q:'',area:'الكل',status:'الكل',rooms:'الكل',baths:'الكل',balcony:'الكل',minPrice:'',maxPrice:'',sort:'newest'},editingTenant:null,editingUser:null
+ user:null,page:'dashboard',design:localStorage.getItem('wam_design')||'design1',properties:[],users:[],tenants:[],settings:{},searchHistory:[],shareSelected:[],filter:{q:'',area:'الكل',status:'الكل',rooms:'الكل',baths:'الكل',balcony:'الكل',minPrice:'',maxPrice:'',sort:'newest'},editingTenant:null,editingUser:null
 };
-async function api(url,opt={}){
- const headers={...(opt.headers||{})};
- if(state.token) headers.Authorization='Bearer '+state.token;
- const r=await fetch(url,{...opt,headers});
- const d=await r.json().catch(()=>({}));
- if(!r.ok) throw Error(d.message||d.error||'حدث خطأ');
- return d;
+
+// ===== Supabase Cloud Integration v16 =====
+let supabaseClient = null;
+let cloudEnabled = false;
+let cloudBusy = false;
+let cloudQueued = false;
+
+function hasSupabaseConfig(){
+  return !!(window.SUPABASE_CONFIG?.url && window.SUPABASE_CONFIG?.anonKey);
 }
-function localLoad(){
+async function initSupabase(){
+  try{
+    let cfg = window.SUPABASE_CONFIG || {};
+    if(!cfg.url || !cfg.anonKey){
+      const r = await fetch('/api/config',{cache:'no-store'});
+      if(r.ok) cfg = await r.json();
+    }
+    if(cfg.url && cfg.anonKey && window.supabase?.createClient){
+      supabaseClient = window.supabase.createClient(cfg.url,cfg.anonKey,{
+        auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+      });
+      cloudEnabled = true;
+    }
+  }catch(e){
+    cloudEnabled = false;
+    console.warn('Supabase initialization failed:',e);
+  }
+}
+async function cloudGetState(){
+  if(!cloudEnabled || !supabaseClient) return null;
+  const {data,error}=await supabaseClient.from('app_state').select('key,value');
+  if(error) throw error;
+  const map=Object.fromEntries((data||[]).map(x=>[x.key,x.value]));
+  if(map.properties) state.properties=Array.isArray(map.properties)?map.properties:state.properties;
+  if(map.tenants) state.tenants=Array.isArray(map.tenants)?map.tenants:[];
+  if(map.settings) state.settings={...state.settings,...map.settings};
+  if(map.searchHistory) state.searchHistory=Array.isArray(map.searchHistory)?map.searchHistory:[];
+  if(map.chat) localStorage.setItem('wam_chat',JSON.stringify(map.chat||[]));
+  if(map.design) state.design=map.design;
+  // Profiles are the only authoritative user list in cloud mode.
+  const {data:profiles,error:pe}=await supabaseClient.from('profiles').select('id,name,email,role,permissions');
+  if(!pe && profiles?.length) state.users=profiles.map(p=>({id:p.id,name:p.name,email:p.email||'',role:p.role,permissions:p.permissions||[]}));
+  saveLocalOnly();
+}
+function saveLocalOnly(){
+  localStorage.setItem('wam_properties',JSON.stringify(state.properties));
+  localStorage.setItem('wam_users',JSON.stringify(state.users));
+  localStorage.setItem('wam_tenants',JSON.stringify(state.tenants));
+  localStorage.setItem('wam_settings',JSON.stringify(state.settings));
+  localStorage.setItem('wam_search_history',JSON.stringify(state.searchHistory));
+  localStorage.setItem('wam_design',state.design);
+}
+async function cloudSaveKey(key,value){
+  if(!cloudEnabled || !supabaseClient || !state.user) return;
+  const {error}=await supabaseClient.from('app_state').upsert({key,value,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(error) throw error;
+}
+async function cloudSaveAll(){
+  if(!cloudEnabled || !supabaseClient || !state.user) return;
+  if(cloudBusy){cloudQueued=true;return;}
+  cloudBusy=true;
+  try{
+    const chat=JSON.parse(localStorage.getItem('wam_chat')||'[]');
+    await Promise.all([
+      cloudSaveKey('properties',state.properties),
+      cloudSaveKey('tenants',state.tenants),
+      cloudSaveKey('settings',state.settings),
+      cloudSaveKey('searchHistory',state.searchHistory),
+      cloudSaveKey('chat',chat),
+      cloudSaveKey('design',state.design)
+    ]);
+  }catch(e){
+    console.warn('Cloud save failed:',e);
+    toast('تعذر حفظ البيانات في Supabase',false);
+  }finally{
+    cloudBusy=false;
+    if(cloudQueued){cloudQueued=false;queueMicrotask(()=>cloudSaveAll())}
+  }
+}
+function save(){
+  saveLocalOnly();
+  if(cloudEnabled && state.user) cloudSaveAll();
+}
+async function cloudSignIn(email,password){
+  if(!cloudEnabled || !supabaseClient) return null;
+  const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
+  if(error) throw error;
+  const user=data.user;
+  const {data:profile,error:pe}=await supabaseClient.from('profiles').select('id,name,email,role,permissions').eq('id',user.id).maybeSingle();
+  if(pe) throw pe;
+  if(!profile) throw new Error('الحساب موجود في Supabase لكن لا توجد له صلاحيات في جدول profiles.');
+  state.user={id:profile.id,name:profile.name||user.email, email:profile.email||user.email, role:profile.role, permissions:profile.permissions||[]};
+  await cloudGetState();
+  localStorage.setItem('wam_session',state.user.id);
+  state.page='dashboard';
+}
+async function cloudRestoreSession(){
+  if(!cloudEnabled || !supabaseClient) return false;
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session?.user) return false;
+  const {data:profile,error}=await supabaseClient.from('profiles').select('id,name,email,role,permissions').eq('id',session.user.id).maybeSingle();
+  if(error || !profile) return false;
+  state.user={id:profile.id,name:profile.name||session.user.email,email:profile.email||session.user.email,role:profile.role,permissions:profile.permissions||[]};
+  await cloudGetState();
+  return true;
+}
+async function cloudSignOut(){
+  if(cloudEnabled && supabaseClient) await supabaseClient.auth.signOut().catch(()=>{});
+  state.user=null; localStorage.removeItem('wam_session');
+}
+async function callOwnerApi(path,payload){
+  if(!cloudEnabled || !supabaseClient) throw new Error('Supabase غير مهيأ.');
+  const {data:{session}}=await supabaseClient.auth.getSession();
+  if(!session?.access_token) throw new Error('انتهت جلسة الدخول.');
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify(payload)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||'فشل تنفيذ العملية.');
+  return j;
+}
+async function syncProfile(profile){
+  if(!cloudEnabled || !supabaseClient || !profile?.id) return;
+  const {error}=await supabaseClient.from('profiles').upsert({
+    id:profile.id,name:profile.name||'',email:profile.email||'',role:profile.role||'admin',permissions:profile.permissions||[]
+  },{onConflict:'id'});
+  if(error) throw error;
+}
+
+function load(){
  state.properties=JSON.parse(localStorage.getItem('wam_properties')||'null')||seedProperties;
  state.properties=state.properties.map(p=>({...p,floor:p.floor??'',areaSize:p.areaSize??''}));
  state.users=JSON.parse(localStorage.getItem('wam_users')||'null')||DEFAULT_USERS;
@@ -45,48 +164,8 @@ function localLoad(){
  state.settings.soundEnabled=state.settings.soundEnabled!==false;
  state.settings.soundVolume=Number(state.settings.soundVolume??.75);
 }
-async function hydrateServer(){
- if(!state.token) return false;
- try{
-  const st=await api('/api/state');
-  if(st?.state){
-   const d=st.state;
-   if(Array.isArray(d.properties)) state.properties=d.properties;
-   if(Array.isArray(d.tenants)) state.tenants=d.tenants;
-   if(d.settings) state.settings={...state.settings,...d.settings};
-   if(Array.isArray(d.searchHistory)) state.searchHistory=d.searchHistory;
-   if(d.design) state.design=d.design;
-  } else {
-   try{const remote=await api('/api/properties'); if(Array.isArray(remote)&&remote.length) state.properties=remote; else await syncServer()}catch{}
-  }
-  try{const users=await api('/api/users'); if(Array.isArray(users)) state.users=users;}catch{}
-  localCache();
-  return true;
- }catch(e){
-  clearSession();
-  toast(e.message||'تعذر الاتصال بقاعدة البيانات.',false);
-  return false;
- }
-}
-function localCache(){
- try{localStorage.setItem('wam_properties',JSON.stringify(state.properties));localStorage.setItem('wam_tenants',JSON.stringify(state.tenants));localStorage.setItem('wam_settings',JSON.stringify(state.settings));localStorage.setItem('wam_search_history',JSON.stringify(state.searchHistory));localStorage.setItem('wam_design',state.design)}catch{}
-}
-let syncTimer=0;
-function save(){
- localCache();
- if(!state.token) return;
- clearTimeout(syncTimer);
- syncTimer=setTimeout(()=>syncServer().catch(e=>toast('تعذر حفظ التغييرات في Supabase: '+e.message,false)),350);
-}
-async function syncServer(){
- if(!state.token)return;
- const payload={properties:state.properties,tenants:state.tenants,settings:state.settings,searchHistory:state.searchHistory,design:state.design,chat:JSON.parse(localStorage.getItem('wam_chat')||'[]')};
- const r=await api('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- if(Array.isArray(r.properties)) state.properties=r.properties;
- localCache();
-}
-function clearSession(){state.token='';state.user=null;localStorage.removeItem('wam_auth_token');localStorage.removeItem('wam_auth_user');localStorage.removeItem('wam_session')}
-function load(){localLoad();}
+// save() is defined by the Supabase integration above.
+
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function toast(msg,good=true){const root=$('#toast-root');if(!root)return;const e=document.createElement('div');e.className='toast '+(good?'good':'bad');e.textContent=msg;root.appendChild(e);setTimeout(()=>e.remove(),3000)}
 function statusClass(s){return s==='متاحة'?'green':s==='مؤجرة'?'blue':s==='محجوزة'?'orange':'red'}
@@ -99,7 +178,7 @@ function soonProperties(){
 function notificationText(){const s=soonProperties();return s.length?`تنبيه: ${s.length} ${s.length===1?'شقة ستصبح':'شقق ستصبح'} متاحة قريباً`:'لا توجد شقق قريبة من التوفر'}
 function designLabel(){return ({design1:'الفخم الداكن',design2:'التركواز الفاخر',design3:'الأبيض والذهبي الراقي',design4:'الأزرق الراقي'})[state.design]||'الفخم الداكن'}
 
-function loginView(){return `<div class="login"><div class="login-box"><div class="brand"><div class="brand-mark">⌂</div><div>عقارات غرب عمان<small>WEST AMMAN PROPERTY MANAGER</small></div></div><h1>تسجيل الدخول</h1><p class="login-note">الدخول الآمن وإدارة الصلاحيات</p><form class="login-form" id="loginForm"><div class="field"><label>البريد الإلكتروني</label><input id="loginEmail" type="email" value="" required></div><div class="field"><label>كلمة المرور</label><input id="loginPassword" type="password" value="" required></div><button class="btn">دخول إلى النظام</button></form><p class="login-note">أدخل بريد وكلمة مرور حسابك في Supabase.</p></div></div>`}
+function loginView(){return `<div class="login"><div class="login-box"><div class="brand"><div class="brand-mark">⌂</div><div>عقارات غرب عمان<small>WEST AMMAN PROPERTY MANAGER</small></div></div><h1>تسجيل الدخول</h1><p class="login-note">الدخول الآمن وإدارة الصلاحيات</p><form class="login-form" id="loginForm"><div class="field"><label>البريد الإلكتروني</label><input id="loginEmail" type="email" value="owner@amman.local" required></div><div class="field"><label>كلمة المرور</label><input id="loginPassword" type="password" value="1234" required></div><button class="btn">دخول إلى النظام</button></form><p class="login-note">المالك الافتراضي: owner@amman.local / 1234</p></div></div>`}
 function sidebar(){
  const items=[['dashboard','⌂','الرئيسية'],['properties','▦','الشقق'],['tenants','♙','المستأجرين'],['reports','▥','التقارير'],['settings','⚙','الإعدادات'],['admins','♙','إدارة المديرين'],['messages','✉','المحادثات']];
  return `<div style="padding:6px 8px 15px;color:var(--accent2);font-weight:800">لوحة التحكم</div>`+items.filter(x=>can(x[0])).map(x=>`<button class="nav-item ${state.page===x[0]?'active':''}" data-page="${x[0]}"><span class="nav-icon">${x[1]}</span>${x[2]}</button>`).join('')+`<div class="side-footer"><b>${esc(state.user?.name||'')}</b><br>${state.user?.role==='owner'?'المالك':'مدير النظام'}<br><br>التصميم: ${designLabel()}</div>`;
@@ -118,31 +197,60 @@ function tenantsPage(){
 function reportsPage(){const total=state.properties.length,avg=total?Math.round(state.properties.reduce((a,p)=>a+Number(p.price||0),0)/total):0;return `<section><div class="panel"><div class="panel-title"><h2>التقارير والإحصائيات</h2><button class="btn" id="exportData">تصدير البيانات</button></div><div class="stats"><div class="stat"><div class="label">إجمالي العقارات</div><div class="num">${total}</div></div><div class="stat green"><div class="label">متاحة</div><div class="num">${state.properties.filter(p=>p.status==='متاحة').length}</div></div><div class="stat blue"><div class="label">مؤجرة</div><div class="num">${state.properties.filter(p=>p.status==='مؤجرة').length}</div></div><div class="stat orange"><div class="label">متوسط الإيجار</div><div class="num">${avg}</div></div></div><div class="panel"><h3>حسب المنطقة</h3>${[...new Set(state.properties.map(p=>p.area))].map(a=>`<div class="report-row"><span>${esc(a)}</span><b>${state.properties.filter(p=>p.area===a).length}</b></div>`).join('')}</div></div></section>`}
 function settingsPage(){return `<section><div class="panel"><div class="panel-title"><div><h2>الإعدادات</h2><div class="muted">المظهر والتنبيهات والصوت والنسخ الاحتياطي</div></div><button class="btn" id="saveSettings">حفظ الإعدادات</button></div><div class="form-grid"><div class="field"><label>رقم واتساب</label><input id="setWhatsapp" value="${esc(state.settings.whatsapp)}"></div><div class="field"><label>عدد أيام التنبيه الافتراضي</label><input id="setDays" type="number" min="0" value="${state.settings.notificationDays}"></div><div class="field full"><label>عنوان الصفحة الرئيسية</label><input id="setTitle" value="${esc(state.settings.heroTitle)}"></div><div class="field full"><label>الوصف</label><textarea id="setSubtitle" rows="3">${esc(state.settings.heroSubtitle)}</textarea></div><div class="field"><label>المظهر</label><select id="setTheme"><option value="dark" ${!state.settings.light?'selected':''}>داكن فاخر</option><option value="light" ${state.settings.light?'selected':''}>أبيض راقٍ</option></select></div><div class="field"><label>صوت التنبيه</label><select id="soundEnabled"><option value="1" ${state.settings.soundEnabled?'selected':''}>مفعل</option><option value="0" ${!state.settings.soundEnabled?'selected':''}>متوقف</option></select></div><div class="field"><label>مستوى الصوت: ${Math.round(state.settings.soundVolume*100)}%</label><input id="soundVolume" type="range" min="0" max="1" step="0.05" value="${state.settings.soundVolume}"></div><div class="field"><label>نغمة مخصصة</label><input id="soundFile" type="file" accept="audio/*"></div></div><div class="settings-actions"><button class="btn success" id="testSound">🔊 تجربة نغمة التنبيه</button><button class="ghost-btn" id="removeSound">إزالة النغمة المخصصة</button></div><h3 style="margin-top:24px">التصاميم الأربعة</h3><div class="design-grid">${['design1','design2','design3','design4'].map((d,i)=>`<button class="design-option ${state.design===d?'active':''}" data-design="${d}"><div class="design-preview d${i+1}"></div><b>${designLabelFor(d)}</b></button>`).join('')}</div><h3 style="margin-top:24px">مناطق غرب عمان</h3><div class="muted">تمت إضافة قائمة أساسية واسعة، ويمكنك إضافة أي منطقة أخرى وحفظها.</div><div class="area-manager"><div class="form-grid"><div class="field"><label>إضافة منطقة جديدة</label><input id="newAreaName" placeholder="اسم المنطقة"></div><div class="field" style="align-self:end"><button class="btn" type="button" id="addArea">+ إضافة وحفظ المنطقة</button></div></div><div class="area-chips">${state.settings.areas.map((a,i)=>`<span class="area-chip">${esc(a)} ${i>=WEST_AMMAN_AREAS.length?`<button type="button" data-remove-area="${esc(a)}">×</button>`:''}</span>`).join('')}</div></div><div class="settings-actions"><button class="btn" id="exportData">نسخة احتياطية</button><label class="ghost-btn" style="display:inline-block">استعادة نسخة<input id="restoreFile" type="file" accept="application/json" hidden></label></div></div></section>`}
 function designLabelFor(d){return ({design1:'التصميم 1 — فخم داكن',design2:'التصميم 2 — تركواز فاخر',design3:'التصميم 3 — أبيض وذهبي راقٍ',design4:'التصميم 4 — أزرق راقٍ'})[d]}
-function adminsPage(){return `<section><div class="panel"><div class="panel-title"><div><h2>إدارة المديرين والصلاحيات</h2><div class="muted">الصلاحيات باللغة العربية — المالك يستطيع تغيير كلمة المرور وإظهارها أو إخفاءها</div></div>${state.user.role==='owner'?'<button class="btn" id="newAdmin">+ إضافة مدير</button>':''}</div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th><th>كلمة المرور</th><th></th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role==='owner'?'المالك':'مدير'}</td><td>${u.permissions.map(x=>PERMISSIONS.find(p=>p[0]===x)?.[1]||x).join('، ')}</td><td>••••••</td><td>${state.user.role==='owner'?`<button class="ghost-btn" data-edit-user="${esc(u.id)}">تعديل</button>`:''}</td></tr>`).join('')}</tbody></table></div></div></section>`}
+function adminsPage(){return `<section><div class="panel"><div class="panel-title"><div><h2>إدارة المديرين والصلاحيات</h2><div class="muted">الصلاحيات باللغة العربية — المالك يستطيع تغيير كلمة المرور وإظهارها أو إخفاءها</div></div>${state.user.role==='owner'?'<button class="btn" id="newAdmin">+ إضافة مدير</button>':''}</div><div class="table-wrap"><table class="table"><thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الصلاحيات</th><th>كلمة المرور</th><th></th></tr></thead><tbody>${state.users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role==='owner'?'المالك':'مدير'}</td><td>${u.permissions.map(x=>PERMISSIONS.find(p=>p[0]===x)?.[1]||x).join('، ')}</td><td>${state.user.role==='owner'?`<span class="password-view" data-pw="${esc(u.id)}">••••••</span>`:'••••••'}</td><td>${state.user.role==='owner'?`<button class="ghost-btn" data-edit-user="${esc(u.id)}">تعديل</button>`:''}</td></tr>`).join('')}</tbody></table></div></div></section>`}
 function messagesPage(){const msgs=JSON.parse(localStorage.getItem('wam_chat')||'[]');return `<section><div class="panel"><div class="panel-title"><h2>المحادثات</h2><span class="muted">بين المالك والمدير</span></div><div class="chat-box">${msgs.map(m=>`<div class="chat-msg ${m.user===state.user.id?'mine':''}"><b>${esc(m.name)}</b><div>${esc(m.text)}</div><small>${fmtDate(m.date?.slice(0,10))}</small></div>`).join('')||'<div class="empty">لا توجد رسائل.</div>'}</div><form id="chatForm" class="chat-form"><input id="chatText" placeholder="اكتب رسالتك..." required><button class="btn">إرسال</button></form></div></section>`}
 
 function modal(html,wide=false){$('#modal-root').innerHTML=`<div class="modal"><div class="modal-box ${wide?'wide':''}">${html}</div></div>`;$$('.closeModal').forEach(b=>b.onclick=closeModal)}function closeModal(){$('#modal-root').innerHTML=''}
 function propertyModal(p=null){let working=[...(p?.images||[])];modal(`<div class="modal-head"><h2>${p?'تعديل الشقة':'إضافة شقة'}</h2><button class="icon-btn closeModal">✕</button></div><form id="propertyForm" class="form-grid"><div class="field"><label>كود الشقة</label><input id="pCode" required value="${esc(p?.code||'')}"></div><div class="field"><label>اسم/وصف الشقة</label><input id="pName" required value="${esc(p?.name||'')}"></div><div class="field"><label>المنطقة</label><select id="pArea" required>${[...new Set([...(state.settings.areas||WEST_AMMAN_AREAS),p?.area].filter(Boolean))].map(a=>`<option ${a===p?.area?'selected':''}>${esc(a)}</option>`).join('')}</select></div><div class="field"><label>الطابق</label><input id="pFloor" type="number" min="-2" value="${esc(p?.floor??'')}" placeholder="مثال: 3"></div><div class="field"><label>المساحة (م²)</label><input id="pAreaSize" type="number" min="0" step="0.01" value="${esc(p?.areaSize??'')}" placeholder="مثال: 150"></div><div class="field"><label>السعر الشهري</label><input id="pPrice" type="number" value="${p?.price||''}"></div><div class="field"><label>الحالة</label><select id="pStatus">${['متاحة','مؤجرة','محجوزة','قريبة من الانتهاء'].map(x=>`<option ${x===(p?.status||'متاحة')?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>عدد الغرف</label><input id="pRooms" type="number" min="0" value="${p?.rooms||0}"></div><div class="field"><label>عدد الحمامات</label><input id="pBaths" type="number" min="0" value="${p?.baths||0}"></div><div class="field"><label>بلكونة</label><select id="pBalcony"><option value="1" ${(p?.balcony??1)?'selected':''}>نعم</option><option value="0" ${!(p?.balcony??1)?'selected':''}>لا</option></select></div><div class="field"><label>تاريخ التوفر</label><input id="pAvail" type="date" value="${esc(p?.availabilityDate||p?.contractEnd||'')}"></div><div class="field"><label>التنبيه قبل التوفر (أيام)</label><input id="pAlert" type="number" min="0" value="${p?.alertDays??state.settings.notificationDays}"></div><div class="field"><label>اسم المستأجر</label><input id="pTenant" value="${esc(p?.tenant||'')}"></div><div class="field"><label>هاتف المستأجر</label><input id="pPhone" value="${esc(p?.phone||'')}"></div><div class="field full"><label>ملاحظات</label><textarea id="pNotes" rows="3">${esc(p?.notes||'')}</textarea></div><div class="field full"><label>فيديو الشقة (رابط)</label><input id="pVideo" value="${esc(p?.video||'')}" placeholder="https://..."></div><div class="field full"><label>الصور — JPG / PNG / WEBP</label><input id="pImages" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="photos" id="pPreview">${working.map((x,i)=>`<div class="photo"><img src="${esc(x)}"><button type="button" data-remove-img="${i}">✕</button></div>`).join('')}</div></div><div class="full btn-row"><button class="btn">${p?'حفظ التعديل':'حفظ الشقة'}</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);
  const renderPhotos=()=>{$('#pPreview').innerHTML=working.map((x,i)=>`<div class="photo"><img src="${esc(x)}"><button type="button" data-remove-img="${i}">✕</button></div>`).join('');$$('[data-remove-img]').forEach(b=>b.onclick=()=>{working.splice(Number(b.dataset.removeImg),1);renderPhotos()})};renderPhotos();
  $('#pImages').onchange=async e=>{const files=[...e.target.files];for(const f of files){if(working.length>=10)break;working.push(await fileToDataUrl(f))}e.target.value='';renderPhotos();toast('تمت إضافة الصور')};
- $('#propertyForm').onsubmit=async e=>{e.preventDefault();const obj={id:p?.id||Date.now().toString(),code:$('#pCode').value.trim(),name:$('#pName').value.trim(),area:$('#pArea').value.trim(),type:'شقة',floor:$('#pFloor').value===''?'':Number($('#pFloor').value),areaSize:$('#pAreaSize').value===''?'':Number($('#pAreaSize').value),status:$('#pStatus').value,price:Number($('#pPrice').value||0),rooms:Number($('#pRooms').value||0),baths:Number($('#pBaths').value||0),balcony:Number($('#pBalcony').value||0),availabilityDate:$('#pAvail').value,contractEnd:$('#pAvail').value,alertDays:Number($('#pAlert').value||state.settings.notificationDays),tenant:$('#pTenant').value.trim(),phone:$('#pPhone').value.trim(),notes:$('#pNotes').value.trim(),video:$('#pVideo').value.trim(),images:working.slice(0,10)};if(!obj.images.length)obj.images=[seedImages[0]];state.properties=p?state.properties.map(x=>x.id===p.id?obj:x):[obj,...state.properties];save();closeModal();render();toast(p?'تم تعديل الشقة':'تمت إضافة الشقة')};}
+ $('#propertyForm').onsubmit=e=>{e.preventDefault();const obj={id:p?.id||Date.now().toString(),code:$('#pCode').value.trim(),name:$('#pName').value.trim(),area:$('#pArea').value.trim(),type:'شقة',floor:$('#pFloor').value===''?'':Number($('#pFloor').value),areaSize:$('#pAreaSize').value===''?'':Number($('#pAreaSize').value),status:$('#pStatus').value,price:Number($('#pPrice').value||0),rooms:Number($('#pRooms').value||0),baths:Number($('#pBaths').value||0),balcony:Number($('#pBalcony').value||0),availabilityDate:$('#pAvail').value,contractEnd:$('#pAvail').value,alertDays:Number($('#pAlert').value||state.settings.notificationDays),tenant:$('#pTenant').value.trim(),phone:$('#pPhone').value.trim(),notes:$('#pNotes').value.trim(),video:$('#pVideo').value.trim(),images:working.slice(0,10)};if(!obj.images.length)obj.images=[seedImages[0]];state.properties=p?state.properties.map(x=>x.id===p.id?obj:x):[obj,...state.properties];save();closeModal();render();toast(p?'تم تعديل الشقة':'تمت إضافة الشقة')};}
 function tenantModal(t=null){const props=state.properties;modal(`<div class="modal-head"><h2>${t?'تعديل مستأجر':'إضافة مستأجر'}</h2><button class="icon-btn closeModal">✕</button></div><form id="tenantForm" class="form-grid"><div class="field"><label>الاسم</label><input id="tName" required value="${esc(t?.name||'')}"></div><div class="field"><label>رقم الهاتف</label><input id="tPhone" value="${esc(t?.phone||'')}"></div><div class="field full"><label>الشقة</label><select id="tProperty"><option value="">بدون ربط</option>${props.map(p=>`<option value="${esc(p.id)}" ${t?.propertyId===p.id?'selected':''}>#${esc(p.code)} — ${esc(p.name)}</option>`).join('')}</select></div><div class="field"><label>موعد الإيجار</label><input id="tStart" type="date" required value="${esc(t?.rentStart||'')}"></div><div class="field"><label>موعد انتهاء العقد</label><input id="tEnd" type="date" required value="${esc(t?.contractEnd||'')}"></div><div class="field"><label>قيمة الإيجار الشهري</label><input id="tPrice" type="number" min="0" required value="${esc(t?.price??'')}" placeholder="بالدينار"></div><div class="field"><label>التنبيه قبل موعد التوفر بأيام</label><input id="tAlert" type="number" min="0" value="${t?.alertDays??state.settings.notificationDays}"></div><div class="field"><label>يريد التجديد؟</label><div class="renew-switch"><button type="button" class="renew-choice ${t?.wantsRenew!==false?'selected yes':''}" id="renewYes">نعم، يريد التجديد</button><button type="button" class="renew-choice ${t?.wantsRenew===false?'selected no':''}" id="renewNo">لا، لا يريد التجديد</button></div></div><div class="field full"><label>تحميل ملف الهوية أو الجواز</label><input id="tDoc" type="file" accept="image/*,.pdf"><div class="muted" id="docName">${esc(t?.documentName||'لم يتم اختيار ملف')}</div></div><div class="full btn-row"><button class="btn">حفظ المستأجر</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);
  let wants=t?.wantsRenew!==false;$('#renewYes').onclick=()=>{wants=true;$('#renewYes').classList.add('selected','yes');$('#renewNo').classList.remove('selected','no')};$('#renewNo').onclick=()=>{wants=false;$('#renewNo').classList.add('selected','no');$('#renewYes').classList.remove('selected','yes')};let docData=t?.documentData||'',docName=t?.documentName||'';$('#tDoc').onchange=async e=>{const f=e.target.files[0];if(!f)return;docData=await fileToDataUrl(f);docName=f.name;$('#docName').textContent=docName};
  $('#tenantForm').onsubmit=e=>{e.preventDefault();const obj={id:t?.id||Date.now().toString(),name:$('#tName').value.trim(),phone:$('#tPhone').value.trim(),propertyId:$('#tProperty').value,rentStart:$('#tStart').value,contractEnd:$('#tEnd').value,price:Number($('#tPrice').value||0),alertDays:Number($('#tAlert').value||state.settings.notificationDays),wantsRenew:wants,documentName:docName,documentData:docData};if(!obj.name||!obj.rentStart||!obj.contractEnd){toast('أكمل الاسم وموعد الإيجار وانتهاء العقد',false);return}state.tenants=t?state.tenants.map(x=>x.id===t.id?obj:x):[...state.tenants,obj];if(obj.propertyId){state.properties=state.properties.map(p=>p.id===obj.propertyId?{...p,tenant:obj.name,phone:obj.phone,contractEnd:obj.contractEnd,availabilityDate:obj.contractEnd,alertDays:obj.alertDays,price:obj.price,status:p.status==='متاحة'?'مؤجرة':p.status}:p)}save();closeModal();render();toast('تم حفظ بيانات المستأجر')};}
-function userModal(u=null){
- if(state.user.role!=='owner')return toast('هذه الصلاحية للمالك فقط',false);
+async function userModal(u=null){
+ if(state.user?.role!=='owner')return toast('هذه الصلاحية للمالك فقط',false);
  const isOwner=u?.role==='owner';
- modal(`<div class="modal-head"><h2>${u?'تعديل المستخدم':'إضافة مدير'}</h2><button class="icon-btn closeModal">✕</button></div><form id="userForm" class="form-grid"><div class="field"><label>الاسم</label><input id="uName" required value="${esc(u?.name||'')}"></div><div class="field"><label>البريد الإلكتروني</label><input id="uEmail" type="email" required value="${esc(u?.email||'')}"></div><div class="field"><label>${u?'الرقم السري الجديد (اختياري)':'الرقم السري'}</label><div style="display:flex;gap:7px"><input id="uPassword" type="password" ${u?'':'required'} minlength="6" placeholder="${u?'اتركه فارغاً دون تغيير':'6 أحرف على الأقل'}" style="flex:1"><button type="button" class="ghost-btn" id="togglePw">إظهار</button></div></div><div class="field full"><label>الصلاحيات بالعربية</label><div class="permissions">${PERMISSIONS.map(([id,label])=>`<label class="check"><input type="checkbox" value="${id}" ${u?.permissions?.includes(id)?'checked':''} ${isOwner?'disabled':''}>${label}</label>`).join('')}</div></div><div class="full btn-row"><button class="btn">حفظ</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);
+ modal(`<div class="modal-head"><h2>${u?'تعديل المستخدم':'إضافة مدير'}</h2><button class="icon-btn closeModal">✕</button></div>
+ <form id="userForm" class="form-grid">
+ <div class="field"><label>الاسم</label><input id="uName" required value="${esc(u?.name||'')}"></div>
+ <div class="field"><label>البريد الإلكتروني</label><input id="uEmail" type="email" required value="${esc(u?.email||'')}"></div>
+ <div class="field"><label>الرقم السري</label><div style="display:flex;gap:7px"><input id="uPassword" type="password" ${cloudEnabled?'':'required'} value="${esc(u?.password||'')}" style="flex:1"><button type="button" class="ghost-btn" id="togglePw">إظهار</button></div></div>
+ <div class="field full"><label>الصلاحيات بالعربية</label><div class="permissions">${PERMISSIONS.map(([id,label])=>`<label class="check"><input type="checkbox" value="${id}" ${u?.permissions?.includes(id)?'checked':''} ${isOwner?'disabled':''}>${label}</label>`).join('')}</div></div>
+ <div class="full btn-row"><button class="btn" id="saveUserBtn">حفظ</button><button type="button" class="ghost-btn closeModal">إلغاء</button></div></form>`);
  $('#togglePw').onclick=()=>{const i=$('#uPassword');i.type=i.type==='password'?'text':'password';$('#togglePw').textContent=i.type==='password'?'إظهار':'إخفاء'};
- $('#userForm').onsubmit=async e=>{e.preventDefault();try{
-   const permissions=isOwner?u.permissions:$$('#userForm input[type=checkbox]:checked').map(x=>x.value);
-   const body={name:$('#uName').value.trim(),email:$('#uEmail').value.trim(),permissions};
-   const pw=$('#uPassword').value; if(pw) body.password=pw;
-   const d=await api(u?('/api/users/'+encodeURIComponent(u.id)):'/api/users',{method:u?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-   if(d?.user) state.users=state.users.filter(x=>x.id!==d.user.id).concat(d.user); else if(d?.id){state.users=state.users.filter(x=>x.id!==d.id).concat(d)}
-   if(u&&state.user.id===u.id){state.user={...state.user,name:body.name,email:body.email,permissions};localStorage.setItem('wam_auth_user',JSON.stringify(state.user));}
-   closeModal();render();toast(u?'تم تحديث بيانات المستخدم':'تم إنشاء المدير بنجاح');
- }catch(err){toast(err.message||'تعذر حفظ المستخدم',false)}};
+ $('#userForm').onsubmit=async e=>{
+  e.preventDefault();const btn=$('#saveUserBtn');btn.disabled=true;
+  const permissions=isOwner?u.permissions:$$('#userForm input[type=checkbox]:checked').map(x=>x.value);
+  const name=$('#uName').value.trim(),email=$('#uEmail').value.trim(),password=$('#uPassword').value;
+  try{
+   if(cloudEnabled){
+    if(u?.id){
+      if(isOwner){
+        if(state.user.id===u.id){
+          const {data,error}=await supabaseClient.auth.updateUser({email,password:password||undefined,data:{name}});
+          if(error)throw error;
+          await syncProfile({id:u.id,name,role:'owner',permissions});
+          state.user={...state.user,name,email:data.user?.email||email};
+        }
+      }else{
+        await callOwnerApi('/api/admin/update',{id:u.id,name,email,password,permissions});
+      }
+    }else{
+      const result=await callOwnerApi('/api/admin/create',{name,email,password,permissions});
+      u=result.user;
+    }
+    const {data:profiles}=await supabaseClient.from('profiles').select('id,name,email,role,permissions');
+    if(profiles)state.users=profiles.map(p=>({id:p.id,name:p.name,email:p.email||'',role:p.role,permissions:p.permissions||[]}));
+    await cloudGetState();
+    toast('تم حفظ المستخدم والصلاحيات في Supabase');closeModal();render();
+   }else{
+    const obj={id:u?.id||Date.now().toString(),name,email,password,role:isOwner?'owner':'admin',permissions};
+    if(u)state.users=state.users.map(x=>x.id===u.id?obj:x);else state.users.push(obj);
+    save();if(state.user.id===obj.id)state.user=obj;closeModal();render();toast('تم حفظ المستخدم والصلاحيات');
+   }
+  }catch(err){console.error(err);toast(err?.message||'تعذر حفظ المدير',false)}finally{btn.disabled=false}
+ };
 }
 function detailsText(p){let s=`🏠 عقارات غرب عمان\n🔑 كود الشقة: ${p.code}\n📍 المنطقة: ${p.area}\n🛏️ عدد الغرف: ${p.rooms}\n🛁 عدد الحمامات: ${p.baths}\n🌿 بلكونة: ${p.balcony?'نعم':'لا'}\n🏢 الطابق: ${p.floor!==''&&p.floor!=null?p.floor:'-'}\n📐 المساحة: ${p.areaSize!==''&&p.areaSize!=null?p.areaSize+' م²':'-'}\n💰 السعر: ${p.price} دينار شهرياً`;if(p.status!=='متاحة'&&p.availabilityDate)s+=`\n📅 تاريخ التوفر: ${fmtDate(p.availabilityDate)}`;s+='\n✨ للاستفسار والتفاصيل تواصل معنا';return s}
 function propertyDetailsModal(p){if(!p)return;modal(`<div class="modal-head"><h2>${esc(p.name)}</h2><button class="icon-btn closeModal">✕</button></div><div class="muted">#${esc(p.code)} • ${esc(p.area)}</div><div class="details-gallery">${(p.images||[]).map(x=>`<img src="${esc(x)}">`).join('')}</div>${p.video?`<div class="video-box"><video src="${esc(p.video)}" controls></video></div>`:''}<div class="detail-grid"><div><b>كود الشقة</b><span>${esc(p.code)}</span></div><div><b>المنطقة</b><span>${esc(p.area)}</span></div><div><b>الغرف</b><span>${p.rooms}</span></div><div><b>الحمامات</b><span>${p.baths}</span></div><div><b>البلكونة</b><span>${p.balcony?'نعم':'لا'}</span></div><div><b>الطابق</b><span>${p.floor!==''&&p.floor!=null?p.floor:'-'}</span></div><div><b>المساحة</b><span>${p.areaSize!==''&&p.areaSize!=null?p.areaSize+' م²':'-'}</span></div><div><b>السعر</b><span>${p.price} دينار</span></div><div><b>الحالة</b><span class="badge ${statusClass(p.status)} static">${esc(p.status)}</span></div>${p.status!=='متاحة'&&p.availabilityDate?`<div><b>تاريخ التوفر</b><span>${fmtDate(p.availabilityDate)}</span></div>`:''}</div><div class="copy-box"><label>التفاصيل الكاملة</label><textarea id="copyDetails" rows="8">${esc(detailsText(p))}</textarea></div><div class="detail-actions btn-row"><button class="btn" id="detailWhatsapp">واتساب + الصور</button>${can('properties')?`<button class="ghost-btn" id="detailEdit">تعديل</button>`:''}</div>`);$('#detailWhatsapp').onclick=()=>shareProperty(p);$('#detailEdit')?.addEventListener('click',()=>{closeModal();propertyModal(p)});}
@@ -160,8 +268,8 @@ function bindCardActions(){
  $$('[data-whatsapp]').forEach(b=>b.onclick=()=>shareProperty(state.properties.find(p=>p.id===b.dataset.whatsapp)));
 }
 function bind(){
- $('#loginForm')?.addEventListener('submit',async e=>{e.preventDefault();try{const d=await api('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('#loginEmail').value.trim(),password:$('#loginPassword').value})});if(!d.ok||!d.token)throw Error(d.message||'بيانات الدخول غير صحيحة');state.token=d.token;state.user=d.user;localStorage.setItem('wam_auth_token',state.token);localStorage.setItem('wam_auth_user',JSON.stringify(state.user));state.page='dashboard';await hydrateServer();render()}catch(err){toast(err.message||'تعذر تسجيل الدخول',false)}});
- $('#menuBtn')?.addEventListener('click',()=>$('#sidebar')?.classList.toggle('open'));$('#logoutBtn')?.addEventListener('click',()=>{clearSession();render()});$('#themeBtn')?.addEventListener('click',()=>{state.settings.light=!state.settings.light;save();render()});$('#alertBtn')?.addEventListener('click',showSoonModal);$('#showSoon')?.addEventListener('click',showSoonModal);
+ $('#loginForm')?.addEventListener('submit',async e=>{e.preventDefault();const email=$('#loginEmail').value.trim(),password=$('#loginPassword').value;const btn=e.submitter;btn?.setAttribute('disabled','disabled');try{if(cloudEnabled){await cloudSignIn(email,password);toast('تم تسجيل الدخول بنجاح');render();}else{const u=state.users.find(x=>x.email===email&&x.password===password);if(!u)return toast('بيانات الدخول غير صحيحة',false);state.user=u;localStorage.setItem('wam_session',u.id);state.page='dashboard';render();}}catch(err){console.error(err);toast(err?.message||'تعذر تسجيل الدخول إلى Supabase',false)}finally{btn?.removeAttribute('disabled')}});
+ $('#menuBtn')?.addEventListener('click',()=>$('#sidebar')?.classList.toggle('open'));$('#logoutBtn')?.addEventListener('click',async()=>{await cloudSignOut();render()});$('#themeBtn')?.addEventListener('click',()=>{state.settings.light=!state.settings.light;save();render()});$('#alertBtn')?.addEventListener('click',showSoonModal);$('#showSoon')?.addEventListener('click',showSoonModal);
  $$('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;$('#sidebar')?.classList.remove('open');render()});
  $('#newProperty')?.addEventListener('click',()=>propertyModal());$('#newTenant')?.addEventListener('click',()=>tenantModal());$('#newAdmin')?.addEventListener('click',()=>userModal());$('#exportData')?.addEventListener('click',exportData);$('#clearHistory')?.addEventListener('click',()=>{state.searchHistory=[];save();render()});
  $$('[data-history]').forEach(b=>b.onclick=()=>restoreSearch(state.searchHistory[Number(b.dataset.history)]));bindCardActions();$$('[data-edit-tenant]').forEach(b=>b.onclick=()=>tenantModal(state.tenants.find(t=>t.id===b.dataset.editTenant)));$$('[data-edit-user]').forEach(b=>b.onclick=()=>userModal(state.users.find(u=>u.id===b.dataset.editUser)));$$('[data-pw]').forEach(b=>b.onclick=()=>{if(state.user.role!=='owner')return;const u=state.users.find(x=>x.id===b.dataset.pw);if(!u)return;b.textContent=b.dataset.visible==='1'?'••••••':u.password;b.dataset.visible=b.dataset.visible==='1'?'0':'1'});
@@ -169,7 +277,20 @@ function bind(){
  const lform=$('#landingSearchForm');if(lform){lform.addEventListener('submit',e=>{e.preventDefault();state.filter={q:$('#landingQ').value.trim(),area:$('#landingArea').value,status:$('#landingStatus').value,rooms:$('#landingRooms').value,baths:$('#landingBaths').value,balcony:$('#landingBalcony').value,minPrice:$('#landingMinPrice').value,maxPrice:$('#landingMaxPrice').value,sort:$('#landingSort').value};saveSearch();render()});$('#landingReset')?.addEventListener('click',()=>{state.filter={q:'',area:'الكل',status:'الكل',rooms:'الكل',baths:'الكل',balcony:'الكل',minPrice:'',maxPrice:'',sort:'newest'};render()})}
 
  $('#saveSettings')?.addEventListener('click',async()=>{state.settings.whatsapp=$('#setWhatsapp').value.trim();state.settings.notificationDays=Number($('#setDays').value||7);state.settings.heroTitle=$('#setTitle').value.trim();state.settings.heroSubtitle=$('#setSubtitle').value.trim();state.settings.light=$('#setTheme').value==='light';state.settings.soundEnabled=$('#soundEnabled').value==='1';state.settings.soundVolume=Number($('#soundVolume').value);state.settings.areas=[...new Set(state.settings.areas||WEST_AMMAN_AREAS)];const f=$('#soundFile').files[0];if(f)state.settings.soundData=await fileToDataUrl(f);save();render();toast('تم حفظ الإعدادات')});$('#testSound')?.addEventListener('click',playAlertSound);$('#removeSound')?.addEventListener('click',()=>{state.settings.soundData='';save();toast('تمت إزالة النغمة المخصصة');render()});$('#addArea')?.addEventListener('click',()=>{const n=$('#newAreaName').value.trim();if(!n)return toast('اكتب اسم المنطقة أولاً',false);if(!state.settings.areas.includes(n))state.settings.areas.push(n);save();render();toast('تمت إضافة المنطقة وحفظها')});$$('[data-remove-area]').forEach(b=>b.onclick=()=>{const n=b.dataset.removeArea;state.settings.areas=state.settings.areas.filter(x=>x!==n);save();render();toast('تم حذف المنطقة')});$('#restoreFile')?.addEventListener('change',e=>e.target.files[0]&&restoreData(e.target.files[0]));$$('[data-design]').forEach(b=>b.onclick=()=>{state.design=b.dataset.design;save();render();toast('تم تطبيق '+designLabel())});
- $('#chatForm')?.addEventListener('submit',e=>{e.preventDefault();const text=$('#chatText').value.trim();if(!text)return;const a=JSON.parse(localStorage.getItem('wam_chat')||'[]');a.push({user:state.user.id,name:state.user.name,text,date:new Date().toISOString()});localStorage.setItem('wam_chat',JSON.stringify(a));render()});
+ $('#chatForm')?.addEventListener('submit',e=>{e.preventDefault();const text=$('#chatText').value.trim();if(!text)return;const a=JSON.parse(localStorage.getItem('wam_chat')||'[]');a.push({user:state.user.id,name:state.user.name,text,date:new Date().toISOString()});localStorage.setItem('wam_chat',JSON.stringify(a));save();render()});
 }
 function render(){$('#app').innerHTML=state.user?shell():loginView();bind();if(state.user&&soonProperties().length){const sig=soonProperties().map(p=>`${p.id}:${p.availabilityDate}`).join('|');if(sessionStorage.getItem('wam_alert_seen')!==sig){sessionStorage.setItem('wam_alert_seen',sig);setTimeout(()=>showSoonModal(),450)}}}
-(async()=>{load();const t=localStorage.getItem('wam_auth_token'),u=JSON.parse(localStorage.getItem('wam_auth_user')||'null');if(t&&u){state.token=t;state.user=u;const ok=await hydrateServer();if(ok){render();return}}render()})().catch(()=>render());
+load();
+(async()=>{
+  await initSupabase();
+  if(cloudEnabled){
+    try{
+      const restored=await cloudRestoreSession();
+      if(!restored){state.user=null;localStorage.removeItem('wam_session');}
+    }catch(e){console.warn('Cloud session restore failed:',e);state.user=null;}
+  }else{
+    const sid=localStorage.getItem('wam_session');
+    state.user=state.users.find(u=>u.id===sid)||null;
+  }
+  render();
+})();

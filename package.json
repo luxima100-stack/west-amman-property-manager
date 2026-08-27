@@ -1,14 +1,15 @@
 {
   "name": "west-amman-property-manager",
-  "version": "FINAL-ORIGINAL-DESIGN-SUPABASE",
+  "version": "16.0.0",
   "private": true,
-  "description": "عقارات غرب عمان - التصميم الأصلي مع Supabase Auth/DB/Storage",
+  "description": "نظام إدارة عقارات غرب عمان - نسخة نهائية للهاتف والكمبيوتر",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "@supabase/supabase-js": "^2.55.0"
   },
   "engines": {
     "node": ">=18"

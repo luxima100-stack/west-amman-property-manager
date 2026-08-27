@@ -1,1 +1,2 @@
-FINAL-ORIGINAL-DESIGN-SUPABASE-21.0.0
+FINAL v16.0.0 — 2026-08-27
+Supabase Auth + database persistence + admin management; original design/features preserved.
