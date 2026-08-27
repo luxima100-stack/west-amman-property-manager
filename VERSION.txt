@@ -1,0 +1,15 @@
+WEST AMMAN PROPERTY MANAGER — FINAL 18.1.0
+Flat ZIP root: YES
+Supabase Auth: YES
+Supabase Database: YES
+Supabase Storage: YES
+Owner/Admin roles: YES
+Admin creation: YES
+Apartment images up to 10: YES
+WhatsApp share with native file sharing: YES
+Horizontal search filters: YES
+Search history: YES
+Availability alerts: YES
+Close X in modals: YES
+Four designs: YES
+Render deployment config: YES
